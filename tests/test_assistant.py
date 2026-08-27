@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from core.command_processor import CommandProcessor
 from core.tts_engine import TTSEngine
 from core.system_controller import SystemController
-from config import VOICE_CONFIG, DEFAULT_LANGUAGE
+from config import VOICE_CONFIG, DEFAULT_LANGUAGE, DEFAULT_PTT_KEY
 
 
 class TestCommandProcessor(unittest.TestCase):
@@ -108,6 +108,10 @@ class TestCommandProcessor(unittest.TestCase):
         from gui.popup_toast import ResponseToast
         # Verify toast class is importable
         self.assertTrue(issubclass(ResponseToast, object))
+
+    def test_custom_voice_and_ptt_config(self):
+        self.assertEqual(DEFAULT_PTT_KEY, "f8")
+        self.assertIn("en-US-AndrewMultilingualNeural", VOICE_CONFIG["en"]["male"])
 
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")

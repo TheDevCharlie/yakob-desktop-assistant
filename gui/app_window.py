@@ -67,6 +67,9 @@ class AssistantApp(ctk.CTk):
         # State Variables
         self.current_language = tk.StringVar(value="en")  # English by default
         self.current_voice = tk.StringVar(value=VOICE_CONFIG["en"]["default"])  # Andrew Multilingual Neural
+        self.custom_voice_id = tk.StringVar(value="")  # User-specified custom voice
+        self.custom_pitch = tk.StringVar(value="+0Hz")  # Pitch tuning
+        self.ptt_key = tk.StringVar(value=DEFAULT_PTT_KEY)  # Customizable PTT Key
         self.speech_rate = tk.StringVar(value="+15%")  # Fast, lively conversational default
         self.is_continuous = tk.BooleanVar(value=False)
         self.chatbot_mode = tk.BooleanVar(value=False)  # Silent Text Chatbot Mode
@@ -74,6 +77,8 @@ class AssistantApp(ctk.CTk):
         self._listen_thread: Optional[threading.Thread] = None
         self._stop_listening = False
         self._ptt_is_held = False
+        self._ptt_press_hook = None
+        self._ptt_release_hook = None
         self._msg_queue = queue.Queue()
         self.tray_icon = None
         self._active_settings_dialog = None  # Single-instance dialog tracker
@@ -887,6 +892,8 @@ class AssistantApp(ctk.CTk):
             self._stop_listening = True
 
     def _get_current_voice_code(self) -> str:
+        if self.custom_voice_id.get().strip():
+            return self.custom_voice_id.get().strip()
         return self.current_voice.get()
 
     def _test_current_voice(self):
@@ -894,13 +901,14 @@ class AssistantApp(ctk.CTk):
         if lang == "am":
             test_phrase = f"ሰላም! እኔ ያዕቆብ ነኝ፤ ድምፄ በትክክል እየሰራ ነው።"
         else:
-            test_phrase = f"Hello! I am {ASSISTANT_NAME}, and my voice system is ready."
+            test_phrase = f"Hello! I am {ASSISTANT_NAME}, and my customized voice system is active."
         self._append_chat_card("bot", f"🔊 [Voice Check]: {test_phrase}")
         self.tts_engine.speak(
             text=test_phrase,
-            language=lang if lang in ["am", "en"] else "am",
+            language=lang if lang in ["am", "en"] else "en",
             voice=self._get_current_voice_code(),
-            rate=self.speech_rate.get()
+            rate=self.speech_rate.get(),
+            pitch=self.custom_pitch.get()
         )
 
     def _stop_tts(self):
@@ -911,9 +919,34 @@ class AssistantApp(ctk.CTk):
         for widget in self.chat_container.winfo_children():
             widget.destroy()
 
+    def _rebind_ptt_hotkey(self, new_key: str):
+        """Rebinds global Push-to-Talk key dynamically."""
+        new_key = new_key.strip().lower()
+        if not new_key:
+            new_key = "f8"
+
+        # Remove old hooks if present
+        try:
+            if self._ptt_press_hook:
+                keyboard.unhook_key(self._ptt_press_hook)
+            if self._ptt_release_hook:
+                keyboard.unhook_key(self._ptt_release_hook)
+        except Exception:
+            pass
+
+        self.ptt_key.set(new_key)
+        self.ptt_btn.configure(text=f"Hold {new_key.upper()} to Talk")
+        self.status_sub.configure(text=f"Hold {new_key.upper()} (or Space), click mic, or type a command")
+
+        try:
+            self._ptt_press_hook = keyboard.on_press_key(new_key, lambda e: self.after(0, self._on_ptt_press))
+            self._ptt_release_hook = keyboard.on_release_key(new_key, lambda e: self.after(0, self._on_ptt_release))
+        except Exception as e:
+            print(f"[AssistantApp] Hotkey rebind note: {e}")
+
     def _open_ai_settings_dialog(self):
-        """Opens a sleek modal to configure LLM Provider, API keys, and TTS Voice Engine (Single Instance)."""
-        # If dialog is already open, simply bring it to focus!
+        """Opens a sleek modal to configure LLM Provider, API keys, TTS Voice Model, and PTT Hotkey."""
+        # Single Instance check
         if self._active_settings_dialog is not None:
             try:
                 if self._active_settings_dialog.winfo_exists():
@@ -927,8 +960,8 @@ class AssistantApp(ctk.CTk):
 
         dialog = ctk.CTkToplevel(self)
         self._active_settings_dialog = dialog
-        dialog.title("AI Intelligence & Voice Engine Settings")
-        dialog.geometry("480x480")
+        dialog.title("Customization Settings")
+        dialog.geometry("520x620")
         dialog.attributes("-topmost", True)
         dialog.configure(fg_color=THEME["bg_dark"])
 
@@ -941,20 +974,120 @@ class AssistantApp(ctk.CTk):
 
         dialog.protocol("WM_DELETE_WINDOW", _on_close_dialog)
 
+        # Scrollable Frame for rich settings
+        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=16, pady=(16, 10))
+
         title = ctk.CTkLabel(
-            dialog,
-            text="🧠 AI Intelligence & Voice Settings",
-            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            scroll,
+            text="⚙️ Voice, TTS & AI Customization",
+            font=ctk.CTkFont(family="Segoe UI", size=16, weight="bold"),
             text_color=THEME["text_primary"]
         )
-        title.pack(anchor="w", padx=24, pady=(20, 6))
+        title.pack(anchor="w", padx=8, pady=(0, 12))
 
-        # 1. LLM BRAIN PROVIDER
-        prov_lbl = ctk.CTkLabel(dialog, text="LLM BRAIN PROVIDER", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
-        prov_lbl.pack(anchor="w", padx=24, pady=(6, 4))
+        # 1. PUSH-TO-TALK KEY CUSTOMIZER
+        ptt_hdr = ctk.CTkLabel(scroll, text="🎙 PUSH-TO-TALK (PTT) KEY ASSIGNMENT", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["primary"])
+        ptt_hdr.pack(anchor="w", padx=8, pady=(4, 4))
+
+        ptt_menu = ctk.CTkOptionMenu(
+            scroll,
+            values=["F8 (Default)", "F9", "F7", "F6", "Ctrl+Space", "Alt+Space", "Caps Lock", "Space", "Custom"],
+            fg_color=THEME["card_bg"],
+            button_color=THEME["border"],
+            dropdown_fg_color=THEME["card_bg"],
+            dropdown_text_color=THEME["text_primary"],
+            text_color=THEME["text_primary"],
+            corner_radius=8,
+            height=32
+        )
+        current_k = self.ptt_key.get().upper()
+        if current_k in ["F8", "F9", "F7", "F6", "SPACE", "CAPS LOCK"]:
+            ptt_menu.set(f"{current_k} (Default)" if current_k == "F8" else current_k)
+        else:
+            ptt_menu.set("Custom")
+        ptt_menu.pack(fill="x", padx=8, pady=(0, 6))
+
+        ptt_entry = ctk.CTkEntry(
+            scroll,
+            placeholder_text="Or type custom key (e.g., f8, f9, alt+space)...",
+            placeholder_text_color=THEME["text_muted"],
+            fg_color=THEME["card_bg"],
+            border_color=THEME["border"],
+            text_color=THEME["text_primary"],
+            height=34
+        )
+        ptt_entry.insert(0, self.ptt_key.get())
+        ptt_entry.pack(fill="x", padx=8, pady=(0, 14))
+
+        # 2. TTS VOICE MODEL CUSTOMIZER
+        voice_hdr = ctk.CTkLabel(scroll, text="🗣 TTS VOICE MODEL & PITCH", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["primary"])
+        voice_hdr.pack(anchor="w", padx=8, pady=(4, 4))
+
+        tts_model_menu = ctk.CTkOptionMenu(
+            scroll,
+            values=[
+                "en-US-AndrewMultilingualNeural (Flagship Male)",
+                "en-US-BrianMultilingualNeural (Warm Male)",
+                "en-US-GuyNeural (Crisp Male)",
+                "am-ET-AmehaNeural (Flagship Amharic Male)",
+                "am-ET-MekdesNeural (Amharic Female)",
+                "en-US-AvaMultilingualNeural (Natural Female)",
+                "en-US-JennyNeural (Expressive Female)",
+                "Custom Voice Name / ID"
+            ],
+            fg_color=THEME["card_bg"],
+            button_color=THEME["border"],
+            dropdown_fg_color=THEME["card_bg"],
+            dropdown_text_color=THEME["text_primary"],
+            text_color=THEME["text_primary"],
+            corner_radius=8,
+            height=32
+        )
+        tts_model_menu.set("en-US-AndrewMultilingualNeural (Flagship Male)")
+        tts_model_menu.pack(fill="x", padx=8, pady=(0, 6))
+
+        custom_voice_entry = ctk.CTkEntry(
+            scroll,
+            placeholder_text="Custom Edge-TTS Voice Name or ElevenLabs Voice ID...",
+            placeholder_text_color=THEME["text_muted"],
+            fg_color=THEME["card_bg"],
+            border_color=THEME["border"],
+            text_color=THEME["text_primary"],
+            height=34
+        )
+        if self.custom_voice_id.get():
+            custom_voice_entry.insert(0, self.custom_voice_id.get())
+        custom_voice_entry.pack(fill="x", padx=8, pady=(0, 8))
+
+        # Pitch Selector
+        pitch_box = ctk.CTkFrame(scroll, fg_color="transparent")
+        pitch_box.pack(fill="x", padx=8, pady=(0, 14))
+
+        pitch_lbl = ctk.CTkLabel(pitch_box, text="Voice Pitch:", font=ctk.CTkFont(family="Segoe UI", size=11), text_color=THEME["text_secondary"])
+        pitch_lbl.pack(side="left", padx=(0, 8))
+
+        pitch_menu = ctk.CTkOptionMenu(
+            pitch_box,
+            values=["Natural (+0Hz)", "Deep Male (-20Hz)", "Crisp Bright (+20Hz)", "High (+40Hz)"],
+            fg_color=THEME["card_bg"],
+            button_color=THEME["border"],
+            dropdown_fg_color=THEME["card_bg"],
+            dropdown_text_color=THEME["text_primary"],
+            text_color=THEME["text_primary"],
+            corner_radius=8,
+            width=160,
+            height=30
+        )
+        pitch_menu.set("Natural (+0Hz)")
+        pitch_menu.pack(side="left")
+
+        # 3. LLM BRAIN PROVIDER
+        prov_lbl = ctk.CTkLabel(scroll, text="🧠 LLM BRAIN & INTELLIGENCE CORE", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["primary"])
+        prov_lbl.pack(anchor="w", padx=8, pady=(4, 4))
 
         prov_menu = ctk.CTkOptionMenu(
-            dialog,
+            scroll,
             values=["Google Gemini 2.5 Flash (Recommended)", "Groq (Llama 3.3 70B)", "OpenAI (GPT-4o-mini)", "Built-in Offline Trivia Engine"],
             fg_color=THEME["card_bg"],
             button_color=THEME["border"],
@@ -964,14 +1097,11 @@ class AssistantApp(ctk.CTk):
             corner_radius=8,
             height=32
         )
-        prov_menu.pack(fill="x", padx=24, pady=(0, 10))
-
-        key_lbl = ctk.CTkLabel(dialog, text="GEMINI / GROQ / OPENAI API KEY", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
-        key_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+        prov_menu.pack(fill="x", padx=8, pady=(0, 6))
 
         key_entry = ctk.CTkEntry(
-            dialog,
-            placeholder_text="Paste your LLM API key here...",
+            scroll,
+            placeholder_text="Paste Gemini / Groq / OpenAI API key...",
             placeholder_text_color=THEME["text_muted"],
             fg_color=THEME["card_bg"],
             border_color=THEME["border"],
@@ -979,35 +1109,17 @@ class AssistantApp(ctk.CTk):
             show="•",
             height=34
         )
-        key_entry.pack(fill="x", padx=24, pady=(0, 16))
-
-        # Fill existing LLM key if present
         if self.command_processor.llm_brain.api_key:
             key_entry.insert(0, self.command_processor.llm_brain.api_key)
+        key_entry.pack(fill="x", padx=8, pady=(0, 14))
 
-        # 2. TTS VOICE SYNTHESIS ENGINE
-        tts_lbl = ctk.CTkLabel(dialog, text="VOICE SYNTHESIS (TTS) ENGINE", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
-        tts_lbl.pack(anchor="w", padx=24, pady=(0, 4))
-
-        tts_menu = ctk.CTkOptionMenu(
-            dialog,
-            values=["Microsoft Flagship Neural HD (Free & Instant)", "ElevenLabs Studio AI (Highest Human Realism)"],
-            fg_color=THEME["card_bg"],
-            button_color=THEME["border"],
-            dropdown_fg_color=THEME["card_bg"],
-            dropdown_text_color=THEME["text_primary"],
-            text_color=THEME["text_primary"],
-            corner_radius=8,
-            height=32
-        )
-        tts_menu.pack(fill="x", padx=24, pady=(0, 10))
-
-        eleven_lbl = ctk.CTkLabel(dialog, text="ELEVENLABS API KEY (Optional for Studio AI)", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
-        eleven_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+        # 4. ELEVENLABS STUDIO AI KEY (Optional)
+        eleven_lbl = ctk.CTkLabel(scroll, text="ELEVENLABS API KEY (Optional Studio AI)", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        eleven_lbl.pack(anchor="w", padx=8, pady=(0, 4))
 
         eleven_entry = ctk.CTkEntry(
-            dialog,
-            placeholder_text="Paste ElevenLabs API key here...",
+            scroll,
+            placeholder_text="Paste ElevenLabs key here...",
             placeholder_text_color=THEME["text_muted"],
             fg_color=THEME["card_bg"],
             border_color=THEME["border"],
@@ -1015,13 +1127,39 @@ class AssistantApp(ctk.CTk):
             show="•",
             height=34
         )
-        eleven_entry.pack(fill="x", padx=24, pady=(0, 20))
-
         if self.tts_engine.elevenlabs_api_key:
             eleven_entry.insert(0, self.tts_engine.elevenlabs_api_key)
+        eleven_entry.pack(fill="x", padx=8, pady=(0, 16))
 
         def save_and_close():
-            # Save LLM Brain
+            # 1. Save PTT Key
+            chosen_ptt = ptt_entry.get().strip().lower()
+            if not chosen_ptt:
+                val = ptt_menu.get().split()[0].lower()
+                chosen_ptt = val if val != "custom" else "f8"
+            self._rebind_ptt_hotkey(chosen_ptt)
+
+            # 2. Save Custom Voice Model & Pitch
+            c_voice = custom_voice_entry.get().strip()
+            if c_voice:
+                self.custom_voice_id.set(c_voice)
+            else:
+                sel_v = tts_model_menu.get().split()[0]
+                self.custom_voice_id.set("")
+                self.current_voice.set(sel_v)
+
+            # Pitch mapping
+            pitch_val = pitch_menu.get()
+            if "Deep" in pitch_val:
+                self.custom_pitch.set("-20Hz")
+            elif "Bright" in pitch_val:
+                self.custom_pitch.set("+20Hz")
+            elif "High" in pitch_val:
+                self.custom_pitch.set("+40Hz")
+            else:
+                self.custom_pitch.set("+0Hz")
+
+            # 3. Save LLM Brain
             sel_prov = prov_menu.get()
             llm_key = key_entry.get().strip()
             provider_map = {
@@ -1033,39 +1171,40 @@ class AssistantApp(ctk.CTk):
             chosen_provider = provider_map.get(sel_prov, "gemini")
             self.command_processor.llm_brain.set_config(chosen_provider, llm_key)
 
-            # Save TTS Voice Engine
+            # 4. Save ElevenLabs
             eleven_key = eleven_entry.get().strip()
             if eleven_key:
                 self.tts_engine.set_elevenlabs_key(eleven_key)
             else:
                 self.tts_engine.elevenlabs_api_key = None
 
-            self._append_chat_card("bot", f"🧠 Settings updated: LLM ({sel_prov}), TTS ({tts_menu.get()})")
+            self._append_chat_card("bot", f"⚙️ Customization saved: PTT Key ({chosen_ptt.upper()}), Voice ({self._get_current_voice_code()}), Pitch ({self.custom_pitch.get()})")
             _on_close_dialog()
 
         save_btn = ctk.CTkButton(
             dialog,
-            text="Save Settings ✦",
+            text="Save Customizations ✦",
             fg_color=THEME["primary"],
             hover_color=THEME["primary_hover"],
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
-            height=36,
+            height=38,
             command=save_and_close
         )
-        save_btn.pack(fill="x", padx=24, pady=(0, 10))
+        save_btn.pack(fill="x", padx=24, pady=(0, 16))
 
     # -------------------------------------------------------------
     # GLOBAL HOTKEY & SYSTEM TRAY
     # -------------------------------------------------------------
     def _init_global_hotkey(self):
-        """Registers system-wide hotkeys (Alt+Y for toggle, F8 for Push-to-Talk)."""
+        """Registers system-wide hotkeys (Alt+Y for toggle, customizable Push-to-Talk key)."""
         def _bind():
             try:
                 # 1. Toggle listen hotkey (Alt+Y)
                 keyboard.add_hotkey("alt+y", self._on_hotkey_pressed)
-                # 2. Push-to-talk key (Hold F8)
-                keyboard.on_press_key("f8", lambda e: self.after(0, self._on_ptt_press))
-                keyboard.on_release_key("f8", lambda e: self.after(0, self._on_ptt_release))
+                # 2. Push-to-talk key (Default F8, rebindable)
+                key = self.ptt_key.get() or "f8"
+                self._ptt_press_hook = keyboard.on_press_key(key, lambda e: self.after(0, self._on_ptt_press))
+                self._ptt_release_hook = keyboard.on_release_key(key, lambda e: self.after(0, self._on_ptt_release))
             except Exception as e:
                 print(f"[AssistantApp] Global hotkey note: {e}")
         threading.Thread(target=_bind, daemon=True).start()
