@@ -312,6 +312,16 @@ class CommandProcessor:
             resp = "ወደ ቀጣዩ ዘፈን እየተቀየረ ነው..." if detected_lang == "am" else msg
             return resp, f"⏭ {resp}", {"action": "next_song"}
 
+        # 2.5 Live Radio Intent
+        radio_match = re.search(r'\b(?:play\s+radio|tune\s+to\s+radio|radio|ሬዲዮ\s+አጫውት|ሬዲዮ\s+ክፈት|ሬዲዮ)\s*(.*)', text_lower)
+        if radio_match or any(r in text_lower for r in ["ሸገር", "ፋና", "sheger", "fana fm", "bbc radio", "npr radio", "jazz radio"]):
+            st_query = radio_match.group(1).strip() if radio_match else text_lower
+            if not st_query:
+                st_query = "sheger fm"
+            msg = music_streamer.play_radio(st_query)
+            resp = f"የቀጥታ ሬዲዮ ({st_query}) እየተከፈተ ነው..." if detected_lang == "am" else f"Tuning into live radio ({st_query})..."
+            return resp, f"📻 {resp}", {"action": "play_radio", "station": st_query}
+
         # 3. Stream Specific Song from YouTube
         play_song_match = re.search(r'^(?:play\s+song|play\s+music|play|stream|አጫውት|ሙዚቃ\s+ክፈት|ሙዚቃ\s+አጫውት)\s+(.+)', text_lower)
         if play_song_match and not any(w in text_lower for w in ["game", "timer", "calculator", "chrome", "notepad", "weather", "news", "riddle", "joke", "playlist"]):

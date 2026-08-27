@@ -133,6 +133,17 @@ class TestCommandProcessor(unittest.TestCase):
         tracks = music_streamer.get_playlist_tracks("Focus Mode")
         self.assertIn("Lofi Rain Beats", tracks)
 
+    def test_radio_stations_and_routing(self):
+        from core.radio_stations import find_radio_station, RADIO_STATIONS
+        sheger = find_radio_station("sheger fm")
+        self.assertIsNotNone(sheger)
+        self.assertIn("Sheger FM", sheger["name"])
+
+        # Test command processor radio routing
+        spoken, display, meta = self.processor.process_command("play radio Sheger FM", language="en")
+        self.assertEqual(meta.get("action"), "play_radio")
+        self.assertIn("sheger", meta.get("station", "").lower())
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")

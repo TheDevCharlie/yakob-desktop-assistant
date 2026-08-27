@@ -13,6 +13,7 @@ import pygame
 from typing import Optional, List, Dict, Callable
 import yt_dlp
 import imageio_ffmpeg
+from core.radio_stations import find_radio_station, RADIO_STATIONS
 
 PLAYLISTS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "playlists.json")
 MUSIC_CACHE_DIR = os.path.join(tempfile.gettempdir(), "yakob_music_cache")
@@ -54,6 +55,28 @@ class MusicStreamer:
         """Strips emojis and problematic characters for safe UI rendering."""
         clean = re.sub(r'[^\w\s\-\.\,\(\)\'\:\?\!\/]', '', text)
         return clean.strip() or "Track"
+
+    def list_radio_stations(self) -> List[Dict[str, str]]:
+        return list(RADIO_STATIONS.values())
+
+    def play_radio(self, station_query: str, on_status_change: Optional[Callable[[str], None]] = None) -> str:
+        """
+        Tunes into a live radio station (Sheger FM, Fana FM, BBC, NPR, Lofi, etc.).
+        """
+        station = find_radio_station(station_query)
+        st_name = station["name"] if station else station_query.title()
+        
+        self.stop()
+        self._stop_requested = False
+        self._on_track_change_cb = on_status_change
+        self.current_track = f"📻 {st_name}"
+
+        if on_status_change:
+            on_status_change(f"Tuning to: {st_name[:24]}")
+
+        # Search for live stream using query or station url
+        search_target = f"{st_name} live radio stream"
+        return self.play(search_target, on_status_change=on_status_change)
 
     def play(self, query: str, on_status_change: Optional[Callable[[str], None]] = None) -> str:
         """

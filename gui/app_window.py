@@ -24,6 +24,7 @@ from core.system_controller import SystemController
 from core.sound_effects import sfx
 from core.music_streamer import music_streamer
 from gui.popup_toast import show_response_toast
+from gui.equalizer_widget import AudioEqualizerWidget
 
 # Modern Grounded Dark Theme Palette
 THEME = {
@@ -116,8 +117,9 @@ class AssistantApp(ctk.CTk):
         # Initialize System Tray in Background
         self._init_tray_icon()
 
-        # Initial Welcome Message
+        # Initial Welcome Message & Real-time Music Monitor
         self.after(400, self._initial_greeting)
+        self.after(500, self._start_music_monitor)
 
     def _create_layout(self):
         self.grid_columnconfigure(1, weight=1)
@@ -456,7 +458,7 @@ class AssistantApp(ctk.CTk):
         self.energy_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=16, pady=(0, 10))
 
         # -------------------------------------------------------------
-        # YouTube Music Player Bar (Sleek in-app streamer - ROW 1)
+        # YouTube Music & Live Radio Player Bar (ROW 1)
         # -------------------------------------------------------------
         self.music_bar = ctk.CTkFrame(
             self.main_frame,
@@ -468,14 +470,27 @@ class AssistantApp(ctk.CTk):
         self.music_bar.grid(row=1, column=0, sticky="ew", pady=(0, 12))
         self.music_bar.grid_columnconfigure(0, weight=1)
 
+        self.music_left = ctk.CTkFrame(self.music_bar, fg_color="transparent")
+        self.music_left.grid(row=0, column=0, padx=14, pady=8, sticky="w")
+
         self.music_title_lbl = ctk.CTkLabel(
-            self.music_bar,
-            text="🎵 Music Streamer: Ready  (Say 'play <song>' or click Playlists)",
+            self.music_left,
+            text="🎵 Music & Radio: Ready  (Say 'play <song>' or click Radio)",
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             text_color=THEME["text_primary"]
         )
-        self.music_title_lbl.grid(row=0, column=0, padx=16, pady=10, sticky="w")
+        self.music_title_lbl.pack(side="left", padx=(0, 12))
 
+        # Audio Frequency Equalizer Visualizer (Dynamic Dancing Bars)
+        self.equalizer_widget = AudioEqualizerWidget(
+            self.music_left,
+            num_bars=18,
+            height=20,
+            is_active_fn=lambda: music_streamer.is_playing()
+        )
+        self.equalizer_widget.pack(side="left")
+
+        # Media Control Buttons & Radio/Playlists Selectors
         self.music_ctrls = ctk.CTkFrame(self.music_bar, fg_color="transparent")
         self.music_ctrls.grid(row=0, column=1, padx=12, pady=6, sticky="e")
 
@@ -490,12 +505,12 @@ class AssistantApp(ctk.CTk):
             hover_color=THEME["card_hover"],
             command=self._toggle_music_playback
         )
-        self.play_pause_btn.pack(side="left", padx=(0, 6))
+        self.play_pause_btn.pack(side="left", padx=(0, 5))
 
         self.skip_btn = ctk.CTkButton(
             self.music_ctrls,
             text="⏭ Skip",
-            width=60,
+            width=58,
             height=28,
             corner_radius=6,
             font=ctk.CTkFont(family="Segoe UI", size=11),
@@ -503,12 +518,12 @@ class AssistantApp(ctk.CTk):
             hover_color=THEME["card_hover"],
             command=self._skip_music_track
         )
-        self.skip_btn.pack(side="left", padx=(0, 6))
+        self.skip_btn.pack(side="left", padx=(0, 5))
 
         self.stop_music_btn = ctk.CTkButton(
             self.music_ctrls,
             text="⏹ Stop",
-            width=58,
+            width=56,
             height=28,
             corner_radius=6,
             font=ctk.CTkFont(family="Segoe UI", size=11),
@@ -516,12 +531,25 @@ class AssistantApp(ctk.CTk):
             hover_color="#3b1c1c",
             command=self._stop_music_playback
         )
-        self.stop_music_btn.pack(side="left", padx=(0, 8))
+        self.stop_music_btn.pack(side="left", padx=(0, 6))
+
+        self.radio_btn = ctk.CTkButton(
+            self.music_ctrls,
+            text="📻 Radio",
+            width=72,
+            height=28,
+            corner_radius=6,
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color="#0f766e",
+            hover_color="#0d9488",
+            command=self._open_radio_dialog
+        )
+        self.radio_btn.pack(side="left", padx=(0, 5))
 
         self.playlists_btn = ctk.CTkButton(
             self.music_ctrls,
             text="🎧 Playlists",
-            width=86,
+            width=84,
             height=28,
             corner_radius=6,
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
@@ -801,29 +829,84 @@ class AssistantApp(ctk.CTk):
         threading.Thread(target=_finish_ptt, daemon=True).start()
 
     # -------------------------------------------------------------
-    # YOUTUBE MUSIC CONTROLS & PLAYLISTS
+    # YOUTUBE MUSIC & LIVE RADIO CONTROLS
     # -------------------------------------------------------------
+    def _start_music_monitor(self):
+        """Periodically syncs current track title and playback state with the UI."""
+        if hasattr(self, 'music_title_lbl') and self.music_title_lbl.winfo_exists():
+            curr = music_streamer.get_current_track()
+            if music_streamer.is_playing() and curr:
+                prefix = "📻" if "📻" in curr or "FM" in curr or "Radio" in curr else "🎵"
+                clean_name = curr.replace("📻", "").strip()
+                self.music_title_lbl.configure(text=f"{prefix} Now Playing: {clean_name[:36]}")
+                self.play_pause_btn.configure(text="⏸ Pause")
+            elif music_streamer.is_paused and curr:
+                clean_name = curr.replace("📻", "").strip()
+                self.music_title_lbl.configure(text=f"⏸ Paused: {clean_name[:36]}")
+                self.play_pause_btn.configure(text="▶ Resume")
+            elif not music_streamer.is_playing() and not music_streamer.is_paused:
+                self.music_title_lbl.configure(text="🎵 Music & Radio: Ready  (Say 'play <song>' or click Radio)")
+                self.play_pause_btn.configure(text="▶ Play")
+
+        self.after(350, self._start_music_monitor)
+
     def _toggle_music_playback(self):
         if music_streamer.is_paused:
             music_streamer.unpause()
-            self.music_title_lbl.configure(text=f"🎵 Resumed: {music_streamer.get_current_track() or 'Track'}")
         elif music_streamer.is_playing():
             music_streamer.pause()
-            self.music_title_lbl.configure(text="⏸ Music Paused")
         else:
             # If not playing, play default chill playlist
             music_streamer.play_playlist("Chill Vibes", on_status_change=self._update_music_bar_status)
 
     def _skip_music_track(self):
         msg = music_streamer.next_track(on_status_change=self._update_music_bar_status)
-        self.music_title_lbl.configure(text=f"⏭ {msg}")
 
     def _stop_music_playback(self):
         music_streamer.stop()
-        self.music_title_lbl.configure(text="🎵 Music Streamer: Stopped")
 
     def _update_music_bar_status(self, text: str):
         self.after(0, lambda: self.music_title_lbl.configure(text=f"🎵 {text}"))
+
+    def _open_radio_dialog(self):
+        """Opens Live World & Ethiopian Radio Stations selector modal."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("📻 Live Radio Stations")
+        dialog.geometry("480x480")
+        dialog.attributes("-topmost", True)
+        dialog.configure(fg_color=THEME["bg_dark"])
+
+        title = ctk.CTkLabel(dialog, text="📻 Live World & Ethiopian Radio Stations", font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"), text_color=THEME["text_primary"])
+        title.pack(anchor="w", padx=20, pady=(16, 8))
+
+        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+
+        stations = music_streamer.list_radio_stations()
+        for st in stations:
+            row = ctk.CTkFrame(scroll, fg_color=THEME["card_bg"], corner_radius=8)
+            row.pack(fill="x", pady=4)
+
+            info_box = ctk.CTkFrame(row, fg_color="transparent")
+            info_box.pack(side="left", padx=12, pady=10)
+
+            name_lbl = ctk.CTkLabel(info_box, text=f"📻 {st['name']}", font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"), text_color=THEME["text_primary"])
+            name_lbl.pack(anchor="w")
+
+            genre_lbl = ctk.CTkLabel(info_box, text=f"{st.get('name_am', '')} • {st.get('genre', '')}", font=ctk.CTkFont(family="Segoe UI", size=10), text_color=THEME["text_muted"])
+            genre_lbl.pack(anchor="w")
+
+            tune_btn = ctk.CTkButton(
+                row,
+                text="▶ Tune In",
+                width=76,
+                height=28,
+                font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+                fg_color="#0f766e",
+                hover_color="#0d9488",
+                command=lambda s=st["name"]: (music_streamer.play_radio(s, on_status_change=self._update_music_bar_status), dialog.destroy())
+            )
+            tune_btn.pack(side="right", padx=10)
 
     def _open_playlists_dialog(self):
         """Opens Curated Playlists modal."""
