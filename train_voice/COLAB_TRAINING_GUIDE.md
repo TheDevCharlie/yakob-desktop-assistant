@@ -1,15 +1,15 @@
-# 🎙️ Custom Amharic Voice Training & Fine-Tuning Guide
+# Custom Amharic Voice Training & Fine-Tuning Guide
 ### *Zero-Cost Neural Voice Synthesis Pipeline using Google Colab GPUs & Coqui XTTS-v2*
 
 ---
 
-## 📌 Executive Summary
+## Executive Summary
 
 This guide outlines the complete end-to-end workflow for training, fine-tuning, and extracting custom **Amharic speaker embeddings** using open-source deep learning models. By leveraging Google Colab's free cloud GPU tier (NVIDIA T4), you can clone or fine-tune an Amharic voice in under 30 minutes without requiring dedicated local hardware.
 
 ---
 
-## 🛠️ Step 1: Dataset Acquisition & Recording
+## Step 1: Dataset Acquisition & Recording
 
 ### Option A: Interactive In-Repo Recording Tool (Recommended)
 Yakob includes an interactive recording utility configured for 22,050 Hz / 24,000 Hz single-channel PCM audio capture:
@@ -28,18 +28,18 @@ You may also integrate publicly available open datasets:
 
 ---
 
-## ☁️ Step 2: Google Colab Setup
+## Step 2: Google Colab Setup
 
 1. Navigate to [Google Colab](https://colab.research.google.com).
-2. Create a new notebook: `File` → `New Notebook`.
+2. Create a new notebook: `File` -> `New Notebook`.
 3. Switch runtime to GPU acceleration:
-   - Navigate to `Runtime` → `Change runtime type`.
+   - Navigate to `Runtime` -> `Change runtime type`.
    - Select **T4 GPU** under Hardware Accelerator.
    - Click **Save**.
 
 ---
 
-## ⚡ Step 3: Execution Script
+## Step 3: Execution Script
 
 Run the following code cells in Google Colab:
 
@@ -61,7 +61,7 @@ uploaded = files.upload()
 for filename in uploaded.keys():
     with zipfile.ZipFile(filename, 'r') as zip_ref:
         zip_ref.extractall('/content/dataset')
-print("✅ Dataset successfully extracted.")
+print("Dataset successfully extracted.")
 ```
 
 ### Cell 3: Embedding Extraction & Synthesis
@@ -97,7 +97,7 @@ output = model.inference(
 
 # Export audio verification sample
 sf.write("validation_sample.wav", output["wav"], 24000)
-print("✅ Validation audio generated successfully.")
+print("Validation audio generated successfully.")
 
 # Serialize and download the trained speaker profiles
 np.save("yakob_speaker_embedding.npy", speaker_embedding.cpu().numpy())
@@ -110,7 +110,7 @@ files.download("validation_sample.wav")
 
 ---
 
-## 📥 Step 4: Integration with Yakob Engine
+## Step 4: Integration with Yakob Engine
 
 1. Transfer the generated `yakob_speaker_embedding.npy` into the `train_voice/` directory within the Yakob repository.
 2. The custom speaker profile is now available for offline neural voice synthesis.
