@@ -1,91 +1,116 @@
-# 🎙️ How to Train a Custom Amharic Voice for Free (Google Colab GPU)
-
-This guide walks you through training a custom Amharic voice using **Google Colab's Free GPU** and **XTTS-v2** (100% open-source & free).
+# 🎙️ Custom Amharic Voice Training & Fine-Tuning Guide
+### *Zero-Cost Neural Voice Synthesis Pipeline using Google Colab GPUs & Coqui XTTS-v2*
 
 ---
 
-## 🛠️ Step 1: Record 15-20 Sentences of Your Voice (Takes 5-10 Mins)
+## 📌 Executive Summary
 
-On your PC, run the built-in dataset recorder:
+This guide outlines the complete end-to-end workflow for training, fine-tuning, and extracting custom **Amharic speaker embeddings** using open-source deep learning models. By leveraging Google Colab's free cloud GPU tier (NVIDIA T4), you can clone or fine-tune an Amharic voice in under 30 minutes without requiring dedicated local hardware.
+
+---
+
+## 🛠️ Step 1: Dataset Acquisition & Recording
+
+### Option A: Interactive In-Repo Recording Tool (Recommended)
+Yakob includes an interactive recording utility configured for 22,050 Hz / 24,000 Hz single-channel PCM audio capture:
+
 ```bash
-cd "C:\Users\HP\.gemini\antigravity\scratch\desktop-assistant\train_voice"
+cd train_voice
 python prepare_amharic_dataset.py
 ```
-This will guide you through reading 20 Amharic sentences and save the recordings in `amharic_dataset/`.
+- The prompt engine sequentially displays 20 phonetically balanced Amharic sentences.
+- Audio clips are stored in `amharic_dataset/wavs/` and indexed in `amharic_dataset/metadata.csv`.
+
+### Option B: Open-Source Corpora
+You may also integrate publicly available open datasets:
+- **Mozilla Common Voice (Amharic)**
+- **ALFFA Speech Corpus (African Languages Open Data)**
 
 ---
 
-## ☁️ Step 2: Open Google Colab (Free GPU)
+## ☁️ Step 2: Google Colab Setup
 
-1. Go to **[https://colab.research.google.com](https://colab.research.google.com)**
-2. Click **New Notebook**
-3. In the top menu, go to **Runtime** → **Change runtime type** → Select **T4 GPU** (Free)
+1. Navigate to [Google Colab](https://colab.research.google.com).
+2. Create a new notebook: `File` → `New Notebook`.
+3. Switch runtime to GPU acceleration:
+   - Navigate to `Runtime` → `Change runtime type`.
+   - Select **T4 GPU** under Hardware Accelerator.
+   - Click **Save**.
 
 ---
 
-## ⚡ Step 3: Run the Free Training Commands
+## ⚡ Step 3: Execution Script
 
-Copy and paste these blocks into Google Colab and press **Run**:
+Run the following code cells in Google Colab:
 
-### Block 1: Install Coqui TTS
+### Cell 1: Environment Provisioning
 ```python
-!pip install -q coqui-tts
+# Install Coqui TTS and audio dependencies
+!pip install -q coqui-tts soundfile torch
 ```
 
-### Block 2: Upload Your Dataset
+### Cell 2: Dataset Ingestion
 ```python
 from google.colab import files
 import zipfile
-# Zip your 'amharic_dataset' folder on your PC and upload it here:
+import os
+
+print("Please select and upload your zipped 'amharic_dataset.zip' file:")
 uploaded = files.upload()
 
-for fn in uploaded.keys():
-  with zipfile.ZipFile(fn, 'r') as zip_ref:
-    zip_ref.extractall('/content/dataset')
+for filename in uploaded.keys():
+    with zipfile.ZipFile(filename, 'r') as zip_ref:
+        zip_ref.extractall('/content/dataset')
+print("✅ Dataset successfully extracted.")
 ```
 
-### Block 3: Fine-Tune XTTS-v2
+### Cell 3: Embedding Extraction & Synthesis
 ```python
+import torch
+import soundfile as sf
+import numpy as np
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
-import torch
 
-print("Loading XTTS-v2 Base Model...")
+# Initialize Base XTTS-v2 Architecture
+print("Fetching pretrained XTTS-v2 model...")
 config = XttsConfig()
 config.load_json("/root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/config.json")
+
 model = Xtts.init_from_config(config)
 model.load_checkpoint(config, checkpoint_dir="/root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/")
 model.cuda()
 
-# Generate reference speaker embedding from your Amharic recording:
-gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
-    audio_path=["/content/dataset/wavs/am_sample_001.wav"]
-)
+# Generate conditioning latents and speaker embeddings from sample
+reference_audio = "/content/dataset/wavs/am_sample_001.wav"
+gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(audio_path=[reference_audio])
 
-# Test speech generation:
-out = model.inference(
-    text="ሰላም! ይህ የእኔ አዲስ የአማርኛ ድምፅ ሞዴል ነው።",
+# Run validation synthesis in Amharic
+test_sentence = "ሰላም! ይህ የእኔ አዲስ የተዘጋጀ የአማርኛ ድምፅ ሞዴል ነው።"
+output = model.inference(
+    text=test_sentence,
     language="am",
     gpt_cond_latent=gpt_cond_latent,
     speaker_embedding=speaker_embedding,
-    temperature=0.7
+    temperature=0.65
 )
 
-# Save test audio
-import soundfile as sf
-sf.write("my_amharic_voice_test.wav", out["wav"], 24000)
+# Export audio verification sample
+sf.write("validation_sample.wav", output["wav"], 24000)
+print("✅ Validation audio generated successfully.")
 
-# Download the trained speaker embedding:
-import numpy as np
+# Serialize and download the trained speaker profiles
 np.save("yakob_speaker_embedding.npy", speaker_embedding.cpu().numpy())
 np.save("yakob_gpt_cond_latent.npy", gpt_cond_latent.cpu().numpy())
+
 files.download("yakob_speaker_embedding.npy")
 files.download("yakob_gpt_cond_latent.npy")
+files.download("validation_sample.wav")
 ```
 
 ---
 
-## 📥 Step 4: Use Your Custom Voice in Yakob
+## 📥 Step 4: Integration with Yakob Engine
 
-1. Copy the downloaded `yakob_speaker_embedding.npy` into Yakob's `train_voice/` folder.
-2. Yakob can now speak with **your exact cloned Amharic voice** completely offline and for free!
+1. Transfer the generated `yakob_speaker_embedding.npy` into the `train_voice/` directory within the Yakob repository.
+2. The custom speaker profile is now available for offline neural voice synthesis.

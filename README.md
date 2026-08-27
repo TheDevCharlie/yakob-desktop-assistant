@@ -1,100 +1,203 @@
-# 🎙️ Yakob (ያዕቆብ) - Multilingual Desktop Assistant (አማርኛ & English)
+<div align="center">
 
-A modern, hands-free intelligent desktop voice assistant designed for Windows with native **Amharic (አማርኛ)** and **English** speech recognition, crisp **Male Neural Text-to-Speech** (powered by `am-ET-AmehaNeural` & `en-US-GuyNeural`), Alexa-style daily utilities (timers, weather, news, coin toss, dice, riddles, facts), and Windows application launching.
+# ✦ Yakob (ያዕቆብ)
+### Intelligent Multilingual Desktop Voice Assistant
+*Native Amharic (አማርኛ) & English Natural Language Processing, Neural Speech Synthesis, and Windows System Automation.*
 
----
+[![Python](https://img.shields.io/badge/Python-3.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg?style=flat-square&logo=python)](https://python.org)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20|%2011-0078D6.svg?style=flat-square&logo=windows)](https://microsoft.com/windows)
+[![LLM Support](https://img.shields.io/badge/AI%20Brain-Gemini%202.5%20Flash%20|%20Groq%20|%20OpenAI-8E75B2.svg?style=flat-square)](https://ai.google.dev)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
-## ✨ Key Features
+[**Features**](#-features) • [**Architecture**](#-architecture) • [**Quick Start**](#-quick-start) • [**Voice Commands**](#-command-reference) • [**Voice Training**](#-voice-training)
 
-- **🗣️ Multilingual Speech Recognition**:
-  - Full support for **Amharic (አማርኛ)** (`am-ET`) and **English** (`en-US`).
-  - Automatic language detection / dual-mode recognition.
-- **🔊 Male Neural Text-to-Speech (TTS)**:
-  - **Amharic Male**: `am-ET-AmehaNeural` (with optional female `am-ET-MekdesNeural`).
-  - **English Male**: `en-US-GuyNeural` (with optional female `en-US-JennyNeural`).
-  - Built-in fallback to `gTTS`.
-- **⏱️ Alexa-Style Day-to-Day Utilities**:
-  - **Timers & Alarms**: Set custom duration timers with automatic audio chime and voice notification.
-  - **Live Weather Forecast**: Instant temperature, humidity, and condition report for Addis Ababa or any global city.
-  - **News & Headlines**: Instant access to top news and headlines.
-  - **Coin Flip & Dice Roll**: Random coin toss (*"ሰው ወይስ ቁጥር / Heads or Tails"*) and 6-sided dice roll.
-  - **Riddles, Facts & Inspiration**: Interactive Amharic and English riddles (*እንቆቅልሽ*), interesting trivia facts, and motivational quotes.
-  - **Music & Songs**: Play any song or artist on YouTube or Spotify.
-- **🚀 Desktop Application Launcher**:
-  - Chrome, Edge, Firefox, Calculator, Notepad, File Explorer, Task Manager, Settings, Camera, Paint, Command Prompt, PowerShell, VS Code, Spotify, Telegram, MS Office.
-- **⚙️ Windows System Automation**:
-  - Adjust master volume (Up, Down, Mute/Unmute).
-  - Desktop screenshots (saved to `Pictures` folder).
-  - Battery percentage and power status.
-  - Time and date in Amharic & English.
-  - Lock computer workstation.
+</div>
 
 ---
 
-## 🚀 How to Run
+## 📖 Overview
 
-### 1. Launch with One Click
-Double-click:
-```bat
-run_assistant.bat
-```
+**Yakob (ያዕቆብ)** is an enterprise-grade, privacy-conscious desktop voice assistant engineered specifically for bidirectional **Amharic (አማርኛ)** and **English** voice interactions. 
 
-### 2. Launch via Terminal / PowerShell
-```bash
-cd "C:\Users\HP\.gemini\antigravity\scratch\desktop-assistant"
-python main.py
-```
+Combining **real-time Voice Activity Detection (VAD)**, **high-definition neural speech synthesis**, **multi-provider LLM intelligence (Google Gemini 2.5 Flash / Groq Llama 3.3)**, and **direct Windows API automation**, Yakob provides an intuitive, hands-free computing experience packaged inside a modern minimalist dark-themed interface and a sleek floating desktop widget.
 
-### 3. Lightweight CLI Mode
-```bash
-python main.py --cli --lang am
+---
+
+## 🏛️ System Architecture
+
+```mermaid
+graph TD
+    User([User Voice Input]) -->|Audio Stream| VAD[Audio Recorder & VAD Engine]
+    VAD -->|WAV Buffer| STT[Speech-to-Text Engine\nam-ET / en-US]
+    
+    STT -->|Transcribed Text| Router{Intent & NLP Router}
+    
+    Router -->|System & App Commands| SysCtrl[System Controller\nApps, Vol, Timer, Screen]
+    Router -->|Alexa Utilities & Trivia| Trivia[Curated Trivia Engine]
+    Router -->|Open-Ended Queries| LLM[LLM Brain\nGemini 2.5 Flash / Groq / OpenAI]
+    
+    SysCtrl -->|Action Result| TTS[Neural TTS Engine\nEdge-TTS HD / ElevenLabs]
+    Trivia -->|Knowledge Result| TTS
+    LLM -->|Conversational Output| TTS
+    
+    TTS -->|Barge-In Capable Audio| Speaker([Speaker Output])
+    TTS -.->|Interrupt Signal| VAD
 ```
 
 ---
 
-## 📋 Comprehensive Voice Commands Reference
+## ✨ Key Capabilities
 
-### 🇪🇹 የአማርኛ ትእዛዛት (Amharic Voice Commands)
+- **🌐 Bidirectional Bilingual NLU**:
+  - Full native recognition of Ge'ez script and Amharic phonology (`am-ET`) alongside American English (`en-US`).
+  - Automatic language identification with hybrid fallback resolution.
 
-| ምድብ (Category) | የድምፅ ትእዛዝ ምሳሌዎች (Spoken Command Examples) |
-|---|---|
-| ⏱️ **ታይመርና አላርም** | `"የ 5 ደቂቃ ታይመር ሙላ"`, `"የ 10 ሰከንድ ታይመር"`, `"ለ 2 ደቂቃ ታይመር"` |
-| ☀️ **የአየር ሁኔታ (Weather)** | `"የአየር ሁኔታ ምን ይመስላል?"`, `"የዛሬ የአየር ሁኔታ"`, `"አዲስ አበባ የአየር ሁኔታ"` |
-| 📰 **ዜና (News)** | `"የዛሬ ዜና ንገረኝ"`, `"አዳዲስ ዜናዎች"`, `"ዜና"` |
-| 🪙 **ሳንቲም ጣል (Coin Flip)** | `"ሳንቲም ጣል"`, `"ሰው ወይስ ቁጥር"` |
-| 🎲 **ዳይስ ጣል (Dice Roll)** | `"ዳይስ ጣል"`, `"ዳይስ"` |
-| 🧩 **እንቆቅልሽ (Riddles)** | `"እንቆቅልሽ ንገረኝ"`, `"እንቆቅልሽ"` |
-| 💡 **አስገራሚ እውነታ (Facts)** | `"አስገራሚ እውነታ ንገረኝ"`, `"የሚገርም ነገር ንገረኝ"`, `"እውነታ"` |
-| 📜 **የዕለቱ ጥቅስ (Quotes)** | `"ጥቅስ ንገረኝ"`, `"የዕለቱ ጥቅስ"`, `"አነቃቂ ንግግር"` |
-| 🎵 **ሙዚቃ (Music)** | `"ሙዚቃ አጫውት"`, `"ዘፈን ክፈትልኝ"`, `"ዩቲዩብ ላይ የኢትዮጵያ ሙዚቃ ፈልግ"` |
-| 🚀 **መተግበሪያ መክፈት (Apps)** | `"ክሮምን ክፈት"`, `"ካልኩሌተር ክፈት"`, `"ኖትፓድ ክፈት"`, `"ፋይል ኤክስፕሎረር ክፈት"`, `"ቪኤስ ኮድ ክፈት"`, `"ሴቲንግ ክፈት"`, `"ካሜራ ክፈት"` |
-| 🔍 **ኢንተርኔት ላይ መፈለግ** | `"ስለ ኢትዮጵያ ፈልግ"`, `"ስለ አርቴፊሻል ኢንተለጀንስ በጎግል ፈልግ"` |
-| 🕒 **ሰዓትና ቀን (Time & Date)** | `"ስንት ሰዓት ነው?"`, `"ዛሬ ምን ቀን ነው?"` |
-| 🔊 **ድምፅ መቆጣጠር (Volume)** | `"ድምፅ ጨምር"`, `"ድምፅ ቀንስ"`, `"ድምፅ አጥፋ / ድምፅ ዝጋ"` |
-| 📸 **ስክሪንሾት ማንሳት** | `"ስክሪንሾት አንሳ"`, `"ስክሪኑን ፎቶ አንሳ"` |
-| 🔋 **ባትሪ ማወቅ** | `"የባትሪ መጠን ስንት ነው?"`, `"ባትሪ"` |
-| 🔒 **ኮምፒውተር መቆለፍ** | `"ኮምፒውተሩን ቆልፍ"` |
-| 🧮 **ሒሳብ ማስላት (Math)** | `"ስንት ነው 45 ሲደመር 30"`, `"50 ሲባዛ በ 4"`, `"100 ሲካፈል ለ 5"` |
-| 💬 **ሰላምታና ንግግር** | `"ሰላም እንደምን አደሩ"`, `"ማን ነህ?"`, `"እንዴት ነህ?"`, `"ቀልድ ንገረኝ"`, `"ዘፈን ዘፍን"`, `"ደህና እደር"`, `"አመሰግናለሁ"` |
+- **⚡ Voice Barge-In / Instant Interruption**:
+  - Full-duplex audio pipeline allows users to interrupt ongoing voice responses at any instant simply by speaking into the microphone.
+
+- **🔊 High-Definition Neural TTS & Natural Prosody**:
+  - Male and female neural voices (`am-ET-AmehaNeural`, `en-US-AndrewMultilingualNeural`, `en-US-GuyNeural`, `am-ET-MekdesNeural`).
+  - Tuned with natural sentence cadence, conversational breath pauses, and a lively `+15%` speech pace.
+  - Built-in adapter for **ElevenLabs Multilingual v2** voice models.
+
+- **🧠 Multi-Model Conversational Intelligence**:
+  - Powered by **Google Gemini 2.5 Flash** for rapid general knowledge, trivia recall, and complex reasoning.
+  - Compatible with **Groq (Llama 3.3 70B)**, **OpenAI (GPT-4o-mini)**, and a **Built-in Offline Knowledge Engine** requiring zero API keys.
+
+- **🖥️ Minimalist UI & Floating Desktop Widget**:
+  - **Main Console**: Grounded obsidian dark palette (`#0d0f14`), chat cards, audio energy meters, and responsive action chips.
+  - **Floating Pill Widget**: Draggable, frameless, always-on-top pill widget (styled like Apple Dynamic Island / Siri) for unobtrusive multitasking.
+
+- **🔇 Zero-Console Silent Windows Integration**:
+  - Standalone `.vbs` and `.lnk` launchers executing via `pythonw.exe` without popping up command prompt windows.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Operating System**: Windows 10 / 11 (64-bit)
+- **Python**: Version 3.10 or newer
+- **Microphone & Speakers**
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/TheDevCharlie/yakob-desktop-assistant.git
+   cd yakob-desktop-assistant
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Generate Windows Desktop Shortcuts (Optional)**:
+   ```bash
+   python create_desktop_shortcut.py
+   ```
+   *This places `Yakob Assistant.lnk` and `Yakob Widget.lnk` directly on your Windows Desktop.*
+
+---
+
+## 🎮 Launch Options
+
+| Mode | Execution Command | Description |
+|---|---|---|
+| **Desktop Shortcuts** | Double-click Desktop Icon | Launches silently with zero terminal popups |
+| **Main Application** | `python main.py` | Full chat interface with settings and visualizer |
+| **Floating Widget** | `python main.py --widget` | Compact, draggable always-on-top pill widget |
+| **CLI / Terminal** | `python main.py --cli --lang am` | Lightweight terminal-only conversational mode |
+
+---
+
+## 📋 Command Reference
+
+### 🇪🇹 የአማርኛ ድምፅ ትእዛዛት (Amharic)
+
+| ምድብ | የትእዛዝ ምሳሌ | የተግባር ዝርዝር |
+|---|---|---|
+| **⏱️ ታይመርና አላርም** | `"የ 5 ደቂቃ ታይመር ሙላ"`, `"የ 30 ሰከንድ ታይመር"` | የጊዜ ቆጣሪ ማስጀመርና ድምፅ ማሰማት |
+| **☀️ የአየር ሁኔታ** | `"የአየር ሁኔታ ምን ይመስላል?"`, `"አዲስ አበባ የአየር ሁኔታ"` | ወቅታዊ የሙቀት መጠንና የአየር ሁኔታ መረጃ |
+| **📰 ዜናና መረጃ** | `"የዛሬ ዜና ንገረኝ"`, `"አዳዲስ ዜናዎች"` | የወቅቱ ዋና ዋና ዜናዎች ማጠቃለያ |
+| **🪙 ሳንቲም & ዳይስ** | `"ሳንቲም ጣል"`, `"ዳይስ ጣል"` | የሳንቲም (ሰው/ቁጥር) እና የዳይስ (1-6) ዕጣ ማውጣት |
+| **🧩 እንቆቅልሽ & እውነታ** | `"እንቆቅልሽ ንገረኝ"`, `"አስገራሚ እውነታ ንገረኝ"` | ባህላዊ እንቆቅልሾች እና የሳይንስ እውነታዎች |
+| **🎵 ሙዚቃ ማጫወት** | `"ሙዚቃ አጫውት"`, `"ዩቲዩብ ላይ የኢትዮጵያ ሙዚቃ ፈልግ"` | ዩቲዩብ ወይም ስፖቲፋይ ላይ ሙዚቃ መክፈት |
+| **🚀 መተግበሪያዎች** | `"ክሮምን ክፈት"`, `"ካልኩሌተር ክፈት"`, `"ኖትፓድ ክፈት"`, `"ፋይል ክፈት"` | የዊንዶውስ መተግበሪያዎችን ማስነሳት |
+| **🔍 ኢንተርኔት ፍለጋ** | `"ስለ ኢትዮጵያ በጎግል ፈልግ"`, `"ስለ አርቴፊሻል ኢንተለጀንስ ፈልግ"` | ቀጥታ የጎግል ድረ-ገጽ ፍለጋ |
+| **🕒 ሰዓትና ቀን** | `"ስንት ሰዓት ነው?"`, `"ዛሬ ምን ቀን ነው?"` | የሰዓትና የቀን መረጃ በአማርኛ አቆጣጠር |
+| **🔊 የድምፅ ቁጥጥር** | `"ድምፅ ጨምር"`, `"ድምፅ ቀንስ"`, `"ድምፅ አጥፋ"` | የኮምፒውተር ዋና ድምፅ መጠን መቆጣጠር |
+| **📸 ስክሪንሾት** | `"ስክሪንሾት አንሳ"`, `"ስክሪኑን ፎቶ አንሳ"` | ስክሪን ፎቶ አንስቶ በPictures ማህደር ማስቀመጥ |
+| **🔋 ባትሪና ሃይል** | `"የባትሪ መጠን ስንት ነው?"`, `"ኮምፒውተሩን ቆልፍ"` | የባትሪ መረጃ እና ስክሪን መቆለፍ |
+| **🧮 ሒሳብ ስሌት** | `"ስንት ነው 45 ሲደመር 35"`, `"50 ሲባዛ በ 4"` | ፈጣን የድምፅ ሒሳብ ስሌቶች |
 
 ---
 
 ### 🇬🇧 English Voice Commands
 
-| Category | Spoken Command Examples |
-|---|---|
-| ⏱️ **Timers & Alarms** | `"Set a timer for 5 minutes"`, `"Timer for 30 seconds"`, `"Set a 2 minute timer"` |
-| ☀️ **Weather Forecast** | `"What's the weather like?"`, `"What's the weather in Addis Ababa?"`, `"Today's forecast"` |
-| 📰 **News Headlines** | `"What's the latest news?"`, `"Tell me the news"`, `"Today's headlines"` |
-| 🪙 **Coin Flip & Dice** | `"Flip a coin"`, `"Toss a coin"`, `"Roll a die"`, `"Roll a dice"` |
-| 🧩 **Riddles & Trivia** | `"Tell me a riddle"`, `"Tell me a fact"`, `"Did you know?"`, `"Tell me a quote"` |
-| 🎵 **Music & Playback** | `"Play music"`, `"Play songs on YouTube"`, `"Play The Weeknd on YouTube"` |
-| 🚀 **Launch Applications** | `"Open Chrome"`, `"Open Calculator"`, `"Open Notepad"`, `"Launch VS Code"`, `"Open Settings"`, `"Open Camera"` |
-| 🔍 **Web Search** | `"Search for Python tutorials"`, `"Look up latest technology trends"` |
-| 🕒 **Time & Date** | `"What time is it?"`, `"What is today's date?"` |
-| 🔊 **Volume Control** | `"Volume up"`, `"Volume down"`, `"Mute volume"` |
-| 📸 **Screenshot** | `"Take screenshot"`, `"Capture screen"` |
-| 🔋 **Battery Status** | `"Check battery level"`, `"Power status"` |
-| 🔒 **Lock Computer** | `"Lock computer"`, `"Lock PC"` |
-| 🧮 **Spoken Math** | `"What is 45 plus 55"`, `"What is 20 times 8"`, `"Calculate 150 divided by 3"` |
-| 💬 **Casual Conversation** | `"Good morning"`, `"Who are you?"`, `"How are you?"`, `"Tell me a joke"`, `"Sing a song"`, `"Good night"`, `"Thank you"` |
+| Category | Spoken Command Example | Action Description |
+|---|---|---|
+| **⏱️ Timers & Alarms** | `"Set a timer for 5 minutes"`, `"Timer for 30 seconds"` | Launches background timer with audio alert |
+| **☀️ Weather** | `"What's the weather like?"`, `"Weather in London"` | Fetches live temperature and conditions |
+| **📰 News** | `"What's the latest news?"`, `"Today's headlines"` | Opens Google News headlines |
+| **🪙 Utilities** | `"Flip a coin"`, `"Roll a die"` | Random coin toss & 6-sided die generator |
+| **🧩 Trivia & Facts** | `"Tell me a riddle"`, `"Tell me a fact"`, `"Give me a quote"` | General trivia, riddles, and daily motivation |
+| **🎵 Media Playback** | `"Play music"`, `"Play The Weeknd on YouTube"` | Direct media lookup and playback |
+| **🚀 App Launcher** | `"Open Chrome"`, `"Open Calculator"`, `"Launch VS Code"` | Launches registered Windows executables |
+| **🔍 Web Search** | `"Search for Python tutorials"`, `"Look up machine learning"` | Executes Google search queries |
+| **🕒 Time & Date** | `"What time is it?"`, `"What is today's date?"` | Reports formatted system time and date |
+| **🔊 System Audio** | `"Volume up"`, `"Volume down"`, `"Mute volume"` | Adjusts master system volume levels |
+| **📸 Screenshot** | `"Take screenshot"`, `"Capture screen"` | Saves PNG screenshot to Pictures folder |
+| **🔋 Power & Security**| `"Battery status"`, `"Lock PC"` | Checks battery percentage / locks workstation |
+| **🧮 Spoken Math** | `"What is 45 plus 55"`, `"Calculate 150 divided by 3"` | Real-time arithmetic evaluation |
+
+---
+
+## 🎙️ Voice Training
+
+Yakob includes an automated open-source pipeline to record and train custom Amharic voice models for free using **Google Colab GPUs** and **Coqui XTTS-v2**:
+
+1. **Record Training Samples**:
+   ```bash
+   cd train_voice
+   python prepare_amharic_dataset.py
+   ```
+2. **Follow the Colab GPU Guide**:
+   Refer to [`train_voice/COLAB_TRAINING_GUIDE.md`](train_voice/COLAB_TRAINING_GUIDE.md) to generate custom speaker embeddings with zero hardware costs.
+
+---
+
+## 📂 Repository Structure
+
+```
+yakob-desktop-assistant/
+├── main.py                     # Entry point (GUI, Widget, and CLI modes)
+├── config.py                   # Aliases, voice models, website shortcuts, constants
+├── requirements.txt            # Project dependency specifications
+├── run_assistant.bat           # 1-Click batch launcher
+├── Yakob_Silent.vbs            # Silent VBS background launcher
+├── Yakob_Widget.vbs            # Silent Widget background launcher
+├── create_desktop_shortcut.py  # Automated Windows desktop shortcut generator
+├── core/
+│   ├── audio_recorder.py       # VAD audio stream capture via sounddevice
+│   ├── speech_recognizer.py    # Google Speech-to-Text (am-ET & en-US)
+│   ├── tts_engine.py           # Neural TTS engine with barge-in support
+│   ├── system_controller.py    # Direct Windows OS automation & utilities
+│   ├── command_processor.py    # Multilingual intent parser & dispatcher
+│   └── llm_brain.py            # Gemini 2.5 Flash / Groq / OpenAI / Offline Trivia
+├── gui/
+│   ├── app_window.py           # Minimalist dark glassmorphism desktop app
+│   └── widget_window.py        # Frameless floating desktop pill widget
+├── train_voice/
+│   ├── prepare_amharic_dataset.py  # Interactive Amharic dataset recorder
+│   └── COLAB_TRAINING_GUIDE.md     # Step-by-step free Colab GPU training guide
+└── tests/
+    └── test_assistant.py       # Automated unit test suite (15/15 passing)
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
