@@ -22,6 +22,7 @@ from core.tts_engine import TTSEngine
 from core.command_processor import CommandProcessor
 from core.system_controller import SystemController
 from core.sound_effects import sfx
+from core.music_streamer import music_streamer
 from gui.popup_toast import show_response_toast
 
 # Modern Grounded Dark Theme Palette
@@ -395,10 +396,10 @@ class AssistantApp(ctk.CTk):
         )
         self.mic_btn.pack(side="left", padx=(0, 8))
 
-        # 2. Push-to-Talk Button (Hold F8 or Click & Hold)
+        # 2. Push-to-Talk Button (Hold SPACE or Click & Hold)
         self.ptt_btn = ctk.CTkButton(
             self.mic_group,
-            text="Hold F8 to Talk",
+            text="Hold SPACE to Talk",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             height=50,
             corner_radius=12,
@@ -425,7 +426,7 @@ class AssistantApp(ctk.CTk):
 
         self.status_sub = ctk.CTkLabel(
             self.status_box,
-            text="Hold F8 (or Space), click mic, or type a command",
+            text="Hold SPACE to talk, click mic, or say 'play <song>'",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color=THEME["text_secondary"]
         )
@@ -441,6 +442,74 @@ class AssistantApp(ctk.CTk):
         )
         self.energy_bar.set(0)
         self.energy_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=16, pady=(0, 10))
+
+        # YouTube Music Player Bar (Sleek in-app streamer)
+        self.music_bar = ctk.CTkFrame(self.main_frame, corner_radius=10, fg_color="#151922", border_width=1, border_color=THEME["border"])
+        self.music_bar.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        self.music_bar.grid_columnconfigure(0, weight=1)
+
+        self.music_title_lbl = ctk.CTkLabel(
+            self.music_bar,
+            text="🎵 Music Streamer: Ready (Say 'play <song>' or 'my playlists')",
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=THEME["text_secondary"]
+        )
+        self.music_title_lbl.grid(row=0, column=0, padx=14, pady=8, sticky="w")
+
+        self.music_ctrls = ctk.CTkFrame(self.music_bar, fg_color="transparent")
+        self.music_ctrls.grid(row=0, column=1, padx=10, pady=6, sticky="e")
+
+        self.play_pause_btn = ctk.CTkButton(
+            self.music_ctrls,
+            text="⏸/▶",
+            width=32,
+            height=26,
+            corner_radius=6,
+            font=ctk.CTkFont(size=11),
+            fg_color=THEME["card_bg"],
+            hover_color=THEME["card_hover"],
+            command=self._toggle_music_playback
+        )
+        self.play_pause_btn.pack(side="left", padx=(0, 4))
+
+        self.skip_btn = ctk.CTkButton(
+            self.music_ctrls,
+            text="⏭",
+            width=32,
+            height=26,
+            corner_radius=6,
+            font=ctk.CTkFont(size=11),
+            fg_color=THEME["card_bg"],
+            hover_color=THEME["card_hover"],
+            command=self._skip_music_track
+        )
+        self.skip_btn.pack(side="left", padx=(0, 4))
+
+        self.stop_music_btn = ctk.CTkButton(
+            self.music_ctrls,
+            text="⏹",
+            width=32,
+            height=26,
+            corner_radius=6,
+            font=ctk.CTkFont(size=11),
+            fg_color=THEME["card_bg"],
+            hover_color="#3b1c1c",
+            command=self._stop_music_playback
+        )
+        self.stop_music_btn.pack(side="left", padx=(0, 4))
+
+        self.playlists_btn = ctk.CTkButton(
+            self.music_ctrls,
+            text="🎧 Playlists",
+            width=76,
+            height=26,
+            corner_radius=6,
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            fg_color=THEME["primary"],
+            hover_color=THEME["primary_hover"],
+            command=self._open_playlists_dialog
+        )
+        self.playlists_btn.pack(side="left")
 
         # Scrollable Chat History Container
         self.chat_container = ctk.CTkScrollableFrame(
@@ -654,7 +723,15 @@ class AssistantApp(ctk.CTk):
             )
 
     def _on_ptt_press(self):
-        """Called when PTT key (F8) or button is held down."""
+        """Called when PTT key (Space) or button is held down."""
+        # If user is actively typing in text entry, don't hijack Space key
+        try:
+            focused = self.focus_get()
+            if focused and hasattr(self, 'text_entry') and (focused == self.text_entry or str(focused).endswith("entry")):
+                return
+        except Exception:
+            pass
+
         if self._ptt_is_held:
             return
         self._ptt_is_held = True
@@ -665,7 +742,7 @@ class AssistantApp(ctk.CTk):
 
         sfx.play_wake()
         self.ptt_btn.configure(fg_color="#dc2626", text="Recording...")
-        self.set_status("listening", "Recording (Hold key)...")
+        self.set_status("listening", "Recording (Hold SPACE)...")
         
         def on_lvl(rms: float):
             self._msg_queue.put(("energy", rms))
@@ -673,11 +750,12 @@ class AssistantApp(ctk.CTk):
         self.audio_recorder.start_ptt_recording(on_audio_level=on_lvl)
 
     def _on_ptt_release(self):
-        """Called when PTT key (F8) or button is released."""
+        """Called when PTT key or button is released."""
         if not self._ptt_is_held:
             return
         self._ptt_is_held = False
-        self.ptt_btn.configure(fg_color="#1e293b", text="Hold F8 to Talk")
+        k_name = self.ptt_key.get().upper()
+        self.ptt_btn.configure(fg_color="#1e293b", text=f"Hold {k_name} to Talk")
         self.set_status("processing", "Transcribing PTT audio...")
 
         def _finish_ptt():
@@ -699,6 +777,83 @@ class AssistantApp(ctk.CTk):
                 self._msg_queue.put(("status", "idle"))
 
         threading.Thread(target=_finish_ptt, daemon=True).start()
+
+    # -------------------------------------------------------------
+    # YOUTUBE MUSIC CONTROLS & PLAYLISTS
+    # -------------------------------------------------------------
+    def _toggle_music_playback(self):
+        if music_streamer.is_paused:
+            music_streamer.unpause()
+            self.music_title_lbl.configure(text=f"🎵 Resumed: {music_streamer.get_current_track() or 'Track'}")
+        elif music_streamer.is_playing():
+            music_streamer.pause()
+            self.music_title_lbl.configure(text="⏸ Music Paused")
+        else:
+            # If not playing, play default chill playlist
+            music_streamer.play_playlist("Chill Vibes", on_status_change=self._update_music_bar_status)
+
+    def _skip_music_track(self):
+        msg = music_streamer.next_track(on_status_change=self._update_music_bar_status)
+        self.music_title_lbl.configure(text=f"⏭ {msg}")
+
+    def _stop_music_playback(self):
+        music_streamer.stop()
+        self.music_title_lbl.configure(text="🎵 Music Streamer: Stopped")
+
+    def _update_music_bar_status(self, text: str):
+        self.after(0, lambda: self.music_title_lbl.configure(text=f"🎵 {text}"))
+
+    def _open_playlists_dialog(self):
+        """Opens Curated Playlists modal."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("🎧 Curated Playlists")
+        dialog.geometry("440x440")
+        dialog.attributes("-topmost", True)
+        dialog.configure(fg_color=THEME["bg_dark"])
+
+        title = ctk.CTkLabel(dialog, text="🎧 Curate & Stream Playlists", font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"), text_color=THEME["text_primary"])
+        title.pack(anchor="w", padx=20, pady=(16, 8))
+
+        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=16, pady=(0, 10))
+
+        playlists = music_streamer.list_playlists()
+        for pl in playlists:
+            tracks = music_streamer.get_playlist_tracks(pl)
+            row = ctk.CTkFrame(scroll, fg_color=THEME["card_bg"], corner_radius=8)
+            row.pack(fill="x", pady=4)
+
+            pl_lbl = ctk.CTkLabel(row, text=f"📁 {pl} ({len(tracks)} songs)", font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"), text_color=THEME["text_primary"])
+            pl_lbl.pack(side="left", padx=12, pady=10)
+
+            play_btn = ctk.CTkButton(
+                row,
+                text="▶ Play",
+                width=60,
+                height=26,
+                font=ctk.CTkFont(size=11),
+                fg_color=THEME["primary"],
+                hover_color=THEME["primary_hover"],
+                command=lambda name=pl: (music_streamer.play_playlist(name, on_status_change=self._update_music_bar_status), dialog.destroy())
+            )
+            play_btn.pack(side="right", padx=10)
+
+        # Create new playlist entry
+        new_box = ctk.CTkFrame(dialog, fg_color="transparent")
+        new_box.pack(fill="x", padx=16, pady=(0, 16))
+
+        pl_entry = ctk.CTkEntry(new_box, placeholder_text="New Playlist Name...", fg_color=THEME["card_bg"], border_color=THEME["border"], text_color=THEME["text_primary"], height=32)
+        pl_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        def _create_pl():
+            name = pl_entry.get().strip()
+            if name:
+                music_streamer.create_playlist(name)
+                dialog.destroy()
+                self._open_playlists_dialog()
+
+        create_btn = ctk.CTkButton(new_box, text="+ Create", width=70, height=32, font=ctk.CTkFont(size=11, weight="bold"), fg_color=THEME["primary"], command=_create_pl)
+        create_btn.pack(side="right")
 
     def _on_timer_expired(self, expire_text: str, dur: str):
         sfx.play_timer_alert()

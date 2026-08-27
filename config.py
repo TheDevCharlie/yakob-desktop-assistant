@@ -13,7 +13,7 @@ ASSISTANT_VERSION = "2.0.0"
 DEFAULT_LANGUAGE = "en"  # Default to English ("en"), switchable to Amharic ("am")
 DEFAULT_SPEECH_RATE = "+15%"  # Lively, fast, conversational speech speed
 DEFAULT_LLM_PROVIDER = "gemini"  # Gemini 2.5 Flash loaded by default
-DEFAULT_PTT_KEY = "f8"  # Global Push-to-Talk key (Hold F8 to speak, release to send)
+DEFAULT_PTT_KEY = "space"  # Global Push-to-Talk key (Hold SPACE to speak, release to send)
 
 VOICE_CONFIG = {
     "en": {

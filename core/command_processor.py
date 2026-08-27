@@ -24,6 +24,7 @@ from config import (
 from core.system_controller import SystemController
 from core.llm_brain import LLMBrain
 from core.translator import AmharicEnglishTranslator
+from core.music_streamer import music_streamer
 
 
 class CommandProcessor:
@@ -256,6 +257,69 @@ class CommandProcessor:
             resp = "ኮምፒውተሩን እየቆለፍኩ ነው።" if detected_lang == "am" else "Locking your computer."
             self.sys_ctrl.lock_pc()
             return resp, f"🔒 {resp}", {"action": "lock_pc"}
+
+        # -------------------------------------------------------------
+        # 14.5 YOUTUBE MUSIC STREAMING & PLAYLIST CURATION INTENT
+        # -------------------------------------------------------------
+        # 1. Playlists Management
+        if re.search(r'\b(?:create|make|new)\s+playlist\s+(.+)', text_lower) or "ፕሌይሊስት ፍጠር" in text_lower:
+            m = re.search(r'\b(?:create|make|new)\s+playlist\s+(.+)', text_lower)
+            pl_name = m.group(1).strip() if m else text_lower.replace("ፕሌይሊስት ፍጠር", "").strip()
+            msg = music_streamer.create_playlist(pl_name)
+            resp = f"ፕሌይሊስት '{pl_name}' ተፈጥሯል።" if detected_lang == "am" else msg
+            return resp, f"🎵 {resp}", {"action": "create_playlist", "playlist": pl_name}
+
+        if re.search(r'\b(?:my playlists|list playlists|show playlists)\b', text_lower) or "የእኔ ፕሌይሊስቶች" in text_lower:
+            playlists = music_streamer.list_playlists()
+            pl_str = ", ".join(playlists) if playlists else "No playlists created yet."
+            resp = f"የእርስዎ ፕሌይሊስቶች፡ {pl_str}" if detected_lang == "am" else f"Your playlists: {pl_str}"
+            return resp, f"📋 {resp}", {"action": "list_playlists", "playlists": playlists}
+
+        if re.search(r'\b(?:play playlist)\s+(.+)', text_lower) or "ፕሌይሊስት አጫውት" in text_lower:
+            m = re.search(r'\b(?:play playlist)\s+(.+)', text_lower)
+            pl_name = m.group(1).strip() if m else text_lower.replace("ፕሌይሊስት አጫውት", "").strip()
+            msg = music_streamer.play_playlist(pl_name)
+            resp = f"ፕሌይሊስት '{pl_name}' እየተጫወተ ነው..." if detected_lang == "am" else msg
+            return resp, f"▶️ {resp}", {"action": "play_playlist", "playlist": pl_name}
+
+        # Add song to playlist
+        add_pl_match = re.search(r'\badd\s+(.+?)\s+to\s+playlist\s+(.+)', text_lower)
+        if add_pl_match:
+            song_name = add_pl_match.group(1).strip()
+            pl_name = add_pl_match.group(2).strip()
+            msg = music_streamer.add_to_playlist(pl_name, song_name)
+            resp = f"'{song_name}' ወደ ፕሌይሊስት '{pl_name}' ተጨምሯል።" if detected_lang == "am" else msg
+            return resp, f"➕ {resp}", {"action": "add_to_playlist", "song": song_name, "playlist": pl_name}
+
+        # 2. Playback Controls
+        if any(k in text_lower for k in ["pause music", "pause song", "ሙዚቃ አቁም", "ሙዚቃውን አቁም"]):
+            music_streamer.pause()
+            resp = "ሙዚቃው ለጊዜው ቆሟል።" if detected_lang == "am" else "Music paused."
+            return resp, f"⏸ {resp}", {"action": "pause_music"}
+
+        if any(k in text_lower for k in ["resume music", "resume song", "ሙዚቃ ቀጥል", "ሙዚቃውን ቀጥል"]):
+            music_streamer.unpause()
+            resp = "ሙዚቃው ቀጥሏል።" if detected_lang == "am" else "Resuming music."
+            return resp, f"▶️ {resp}", {"action": "resume_music"}
+
+        if any(k in text_lower for k in ["stop music", "stop song", "stop playing music"]):
+            music_streamer.stop()
+            resp = "የሙዚቃ ስርጭት ቆሟል።" if detected_lang == "am" else "Music stopped."
+            return resp, f"⏹ {resp}", {"action": "stop_music"}
+
+        if any(k in text_lower for k in ["next song", "skip song", "skip track", "ቀጣይ ዘፈን", "ቀጣይ ሙዚቃ"]):
+            msg = music_streamer.next_track()
+            resp = "ወደ ቀጣዩ ዘፈን እየተቀየረ ነው..." if detected_lang == "am" else msg
+            return resp, f"⏭ {resp}", {"action": "next_song"}
+
+        # 3. Stream Specific Song from YouTube
+        play_song_match = re.search(r'^(?:play\s+song|play\s+music|play|stream|አጫውት|ሙዚቃ\s+ክፈት|ሙዚቃ\s+አጫውት)\s+(.+)', text_lower)
+        if play_song_match and not any(w in text_lower for w in ["game", "timer", "calculator", "chrome", "notepad", "weather", "news", "riddle", "joke", "playlist"]):
+            song_query = play_song_match.group(1).replace("ሙዚቃ", "").replace("ዘፈን", "").strip()
+            if song_query and len(song_query) > 1:
+                msg = music_streamer.play(song_query)
+                resp = f"'{song_query}'ን ከዩቲዩብ እያጫወትኩ ነው..." if detected_lang == "am" else f"Streaming '{song_query}' from YouTube..."
+                return resp, f"🎵 {resp}", {"action": "stream_music", "query": song_query}
 
         # -------------------------------------------------------------
         # 15. WEB SEARCH & YOUTUBE INTENT

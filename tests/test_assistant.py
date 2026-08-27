@@ -110,7 +110,7 @@ class TestCommandProcessor(unittest.TestCase):
         self.assertTrue(issubclass(ResponseToast, object))
 
     def test_custom_voice_and_ptt_config(self):
-        self.assertEqual(DEFAULT_PTT_KEY, "f8")
+        self.assertEqual(DEFAULT_PTT_KEY, "space")
         self.assertIn("en-US-AndrewMultilingualNeural", VOICE_CONFIG["en"]["male"])
 
     def test_live_web_search(self):
@@ -118,6 +118,20 @@ class TestCommandProcessor(unittest.TestCase):
         res = web_search.search_live_web("Albert Einstein")
         self.assertIsNotNone(res)
         self.assertGreater(len(res), 10)
+
+    def test_music_streamer_and_playlists(self):
+        from core.music_streamer import music_streamer
+        # Test playlist creation
+        res = music_streamer.create_playlist("Focus Mode")
+        self.assertIn("Focus Mode", res)
+        # Test listing playlists
+        playlists = music_streamer.list_playlists()
+        self.assertIn("Focus Mode", playlists)
+        # Test adding track to playlist
+        res_add = music_streamer.add_to_playlist("Focus Mode", "Lofi Rain Beats")
+        self.assertIn("Lofi Rain Beats", res_add)
+        tracks = music_streamer.get_playlist_tracks("Focus Mode")
+        self.assertIn("Lofi Rain Beats", tracks)
 
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
