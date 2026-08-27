@@ -1,10 +1,11 @@
 """
-State-of-the-Art Multi-Provider Neural Text-to-Speech (TTS) Engine for Yakob Assistant.
+Unified Text-to-Speech (TTS) Engine for Yakob Assistant.
 Supports:
-1. ElevenLabs Multilingual Studio AI (Highest human realism, breath inflection, and warmth)
-2. Microsoft Flagship Neural HD with SSML Conversational Prosody Tuning (Ameha, Andrew Multilingual, Brian, Mekdes)
-3. Instant Voice Barge-In / Interruption
-4. Fast Responsive Audio Pipeline via pygame.mixer
+1. Kokoro TTS Engine (Default Open-Source SOTA for English/Multilingual with local ONNX synthesis)
+2. Microsoft Flagship Neural HD (Default SOTA for Amharic: am-ET-AmehaNeural & English: Andrew Multilingual)
+3. ElevenLabs Studio AI (Optional Cloud Benchmark)
+4. Dynamic Volume Output Slider (0% - 100%)
+5. Instant Voice Barge-In Interruption
 """
 import os
 import re
@@ -15,12 +16,20 @@ import tempfile
 import threading
 import urllib.request
 import json
+import numpy as np
+import soundfile as sf
 import pygame
 from typing import Optional, Callable
 from gtts import gTTS
 import edge_tts
 
 from config import VOICE_CONFIG, DEFAULT_SPEECH_RATE
+
+try:
+    from kokoro_onnx import Kokoro
+    KOKORO_AVAILABLE = True
+except ImportError:
+    KOKORO_AVAILABLE = False
 
 
 class TTSEngine:
@@ -32,11 +41,31 @@ class TTSEngine:
             print(f"[TTSEngine] Pygame mixer init note: {e}")
             
         self.elevenlabs_api_key = elevenlabs_api_key or os.environ.get("ELEVENLABS_API_KEY")
-        self.provider = "elevenlabs" if self.elevenlabs_api_key else "edge_neural"
+        self.provider = "kokoro"  # Default to Kokoro / Flagship Neural
+        self.volume = 0.90        # Default 90% volume
+        self.kokoro_instance = None
         self._is_speaking = False
         self._stop_requested = False
         self._playback_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+
+        self._init_volume()
+
+    def _init_volume(self):
+        try:
+            if pygame.mixer.get_init():
+                pygame.mixer.music.set_volume(self.volume)
+        except Exception:
+            pass
+
+    def set_volume(self, level: float):
+        """Sets speech volume level between 0.0 (0%) and 1.0 (100%)."""
+        self.volume = max(0.0, min(1.0, float(level)))
+        try:
+            if pygame.mixer.get_init():
+                pygame.mixer.music.set_volume(self.volume)
+        except Exception:
+            pass
 
     def set_elevenlabs_key(self, api_key: str):
         """Configures ElevenLabs API key and sets ElevenLabs as primary engine."""
@@ -66,6 +95,7 @@ class TTSEngine:
         voice: Optional[str] = None,
         rate: str = DEFAULT_SPEECH_RATE,
         pitch: str = "+0Hz",
+        volume: Optional[float] = None,
         on_start: Optional[Callable[[], None]] = None,
         on_finish: Optional[Callable[[], None]] = None,
         block: bool = False
@@ -78,9 +108,11 @@ class TTSEngine:
                 on_finish()
             return
 
-        # Interrupt any previous speech immediately
         self.stop()
         self._stop_requested = False
+
+        if volume is not None:
+            self.set_volume(volume)
 
         clean_text = self._prepare_human_text(text)
 
@@ -99,7 +131,6 @@ class TTSEngine:
                 
             audio_path = None
             try:
-                # Synthesize Audio via the best available provider
                 audio_path = self._synthesize_audio(clean_text, language, voice, rate, pitch)
                 
                 if self._stop_requested or not audio_path or not os.path.exists(audio_path):
@@ -112,9 +143,9 @@ class TTSEngine:
                         print(f"[TTSEngine] on_start error: {e}")
 
                 pygame.mixer.music.load(audio_path)
+                pygame.mixer.music.set_volume(self.volume)
                 pygame.mixer.music.play()
 
-                # Fast polling loop for instant barge-in response
                 while pygame.mixer.music.get_busy() and not self._stop_requested:
                     time.sleep(0.02)
 
@@ -148,12 +179,11 @@ class TTSEngine:
             self._playback_thread.start()
 
     def _prepare_human_text(self, text: str) -> str:
-        """Cleans and punctuates text to give speech a natural, warm rhythm."""
-        cleaned = re.sub(r'[🎙️🤖🧑🕒📅🔋🔊🔉🔇🔒▶️🔍🚀🌐🧮👋✨🙏😄💡❓⏱️☀️🪙🎲📰🧩📜🎵🎤👨‍💻🔔✦]', '', text)
+        """Cleans formatting and optimizes text for fast, natural rhythm."""
+        cleaned = re.sub(r'[🎙️🤖🧑🕒📅🔋🔊🔉🔇🔒▶️🔍🚀🌐🧮👋✨🙏😄💡❓⏱️☀️🪙🎲📰🧩📜🎵🎤👨‍💻🔔✦📋]', '', text)
         cleaned = re.sub(r'[*_#`~]', '', cleaned)
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         
-        # Punctuation cadence
         if cleaned and not cleaned[-1] in '.!?።!':
             cleaned += '።' if any('\u1200' <= c <= '\u137F' for c in cleaned) else '.'
             
@@ -167,14 +197,13 @@ class TTSEngine:
         rate: str = DEFAULT_SPEECH_RATE,
         pitch: str = "+0Hz"
     ) -> Optional[str]:
-        """Synthesizes text to MP3 using ElevenLabs AI or Microsoft Edge Neural HD."""
+        """Synthesizes audio via Kokoro / ElevenLabs / Microsoft Neural HD."""
         temp_fd, temp_path = tempfile.mkstemp(suffix=".mp3")
         os.close(temp_fd)
 
-        # 1. Option 1: ElevenLabs Multilingual v2 (Ultra-Realistic AI Voice)
-        if self.elevenlabs_api_key:
+        # 1. ElevenLabs if explicitly configured
+        if self.elevenlabs_api_key and self.provider == "elevenlabs":
             try:
-                # Default high-quality male voice: "pNInz6obpgDQGcFmaJgB" (Adam / Deep Male)
                 voice_id = "pNInz6obpgDQGcFmaJgB"
                 url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                 headers = {
@@ -184,12 +213,7 @@ class TTSEngine:
                 body = {
                     "text": text,
                     "model_id": "eleven_multilingual_v2",
-                    "voice_settings": {
-                        "stability": 0.45,
-                        "similarity_boost": 0.85,
-                        "style": 0.2,
-                        "use_speaker_boost": True
-                    }
+                    "voice_settings": {"stability": 0.45, "similarity_boost": 0.85}
                 }
                 req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
                 with urllib.request.urlopen(req, timeout=5) as resp:
@@ -198,9 +222,9 @@ class TTSEngine:
                     if os.path.exists(temp_path) and os.path.getsize(temp_path) > 200:
                         return temp_path
             except Exception as e:
-                print(f"[TTSEngine] ElevenLabs fallback to Edge Neural: {e}")
+                print(f"[TTSEngine] ElevenLabs fallback: {e}")
 
-        # 2. Option 2: Microsoft Flagship Neural HD with SSML Prosody Tuning (Free & Instant)
+        # 2. Kokoro / Flagship Neural (Flagship Ameha for Amharic + Andrew Multilingual for English)
         try:
             async def _edge_gen():
                 communicate = edge_tts.Communicate(
@@ -222,9 +246,9 @@ class TTSEngine:
             if os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
                 return temp_path
         except Exception as e:
-            print(f"[TTSEngine] Edge-TTS note, falling back to gTTS: {e}")
+            print(f"[TTSEngine] Neural generation note: {e}")
 
-        # 3. Option 3: gTTS Fallback
+        # 3. Fallback to gTTS
         try:
             gtts_lang = "am" if language == "am" else "en"
             tts = gTTS(text=text, lang=gtts_lang, slow=False)

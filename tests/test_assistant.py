@@ -83,6 +83,16 @@ class TestCommandProcessor(unittest.TestCase):
         self.assertIsNotNone(sfx._wake_sound)
         self.assertIsNotNone(sfx._done_sound)
 
+    def test_tts_volume_control(self):
+        from core.tts_engine import TTSEngine
+        tts = TTSEngine()
+        tts.set_volume(0.75)
+        self.assertEqual(tts.volume, 0.75)
+        tts.set_volume(1.5)  # Clamps to 1.0
+        self.assertEqual(tts.volume, 1.0)
+        tts.set_volume(-0.2)  # Clamps to 0.0
+        self.assertEqual(tts.volume, 0.0)
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")

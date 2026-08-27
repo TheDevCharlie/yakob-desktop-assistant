@@ -194,7 +194,7 @@ class AssistantApp(ctk.CTk):
         # Speed Slider
         self.speed_header = ctk.CTkLabel(
             self.sidebar,
-            text="SPEECH PACE",
+            text="SPEECH PACE (+15%)",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             text_color=THEME["text_muted"]
         )
@@ -213,7 +213,31 @@ class AssistantApp(ctk.CTk):
             command=self._on_speed_changed
         )
         self.speed_slider.set(15)  # Fast by default
-        self.speed_slider.grid(row=6, column=0, padx=20, pady=(0, 16), sticky="ew")
+        self.speed_slider.grid(row=6, column=0, padx=20, pady=(0, 12), sticky="ew")
+
+        # Volume Output Slider
+        self.volume_header = ctk.CTkLabel(
+            self.sidebar,
+            text="VOLUME (90%)",
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            text_color=THEME["text_muted"]
+        )
+        self.volume_header.grid(row=7, column=0, padx=20, pady=(2, 4), sticky="w")
+
+        self.volume_slider = ctk.CTkSlider(
+            self.sidebar,
+            from_=0,
+            to=100,
+            number_of_steps=20,
+            button_color=THEME["primary"],
+            button_hover_color=THEME["primary_hover"],
+            progress_color=THEME["primary"],
+            fg_color=THEME["card_bg"],
+            height=14,
+            command=self._on_volume_slider_changed
+        )
+        self.volume_slider.set(90)
+        self.volume_slider.grid(row=8, column=0, padx=20, pady=(0, 14), sticky="ew")
 
         # Continuous Listening Toggle
         self.continuous_switch = ctk.CTkSwitch(
@@ -226,11 +250,11 @@ class AssistantApp(ctk.CTk):
             variable=self.is_continuous,
             command=self._on_continuous_toggle
         )
-        self.continuous_switch.grid(row=7, column=0, padx=20, pady=(5, 16), sticky="w")
+        self.continuous_switch.grid(row=9, column=0, padx=20, pady=(0, 14), sticky="w")
 
         # Divider
         self.div1 = ctk.CTkFrame(self.sidebar, height=1, fg_color=THEME["border"])
-        self.div1.grid(row=8, column=0, padx=20, pady=(0, 16), sticky="ew")
+        self.div1.grid(row=10, column=0, padx=20, pady=(0, 14), sticky="ew")
 
         # Floating Widget Button
         self.widget_btn = ctk.CTkButton(
@@ -246,12 +270,12 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._switch_to_widget_mode
         )
-        self.widget_btn.grid(row=9, column=0, padx=20, pady=(0, 8), sticky="ew")
+        self.widget_btn.grid(row=11, column=0, padx=20, pady=(0, 8), sticky="ew")
 
         # AI Intelligence Settings Button
         self.ai_btn = ctk.CTkButton(
             self.sidebar,
-            text="🧠 AI & Trivia Brain Settings",
+            text="🧠 AI & Voice Settings",
             fg_color=THEME["card_bg"],
             hover_color=THEME["card_hover"],
             border_width=1,
@@ -262,7 +286,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             command=self._open_ai_settings_dialog
         )
-        self.ai_btn.grid(row=10, column=0, padx=20, pady=(0, 8), sticky="ew")
+        self.ai_btn.grid(row=12, column=0, padx=20, pady=(0, 8), sticky="ew")
 
         # Test Voice Button
         self.test_voice_btn = ctk.CTkButton(
@@ -278,7 +302,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._test_current_voice
         )
-        self.test_voice_btn.grid(row=11, column=0, padx=20, pady=(0, 8), sticky="ew")
+        self.test_voice_btn.grid(row=13, column=0, padx=20, pady=(0, 8), sticky="ew")
 
         # Stop Speech Button
         self.stop_tts_btn = ctk.CTkButton(
@@ -292,7 +316,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11),
             command=self._stop_tts
         )
-        self.stop_tts_btn.grid(row=12, column=0, padx=20, pady=(0, 4), sticky="ew")
+        self.stop_tts_btn.grid(row=14, column=0, padx=20, pady=(0, 4), sticky="ew")
 
         # Clear Log Button
         self.clear_btn = ctk.CTkButton(
@@ -306,7 +330,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11),
             command=self._clear_chat
         )
-        self.clear_btn.grid(row=13, column=0, padx=20, pady=(0, 20), sticky="ew")
+        self.clear_btn.grid(row=15, column=0, padx=20, pady=(0, 20), sticky="ew")
 
         # -------------------------------------------------------------
         # 2. MAIN CONVERSATION & HERO AREA
@@ -748,6 +772,12 @@ class AssistantApp(ctk.CTk):
         val_int = int(value)
         sign = "+" if val_int >= 0 else ""
         self.speech_rate.set(f"{sign}{val_int}%")
+        self.speed_header.configure(text=f"SPEECH PACE ({sign}{val_int}%)")
+
+    def _on_volume_slider_changed(self, value: float):
+        vol_pct = int(value)
+        self.tts_engine.set_volume(vol_pct / 100.0)
+        self.volume_header.configure(text=f"VOLUME ({vol_pct}%)")
 
     def _on_continuous_toggle(self):
         if self.is_continuous.get():
