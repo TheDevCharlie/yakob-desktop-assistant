@@ -66,7 +66,7 @@ class AssistantApp(ctk.CTk):
         # State Variables
         self.current_language = tk.StringVar(value=DEFAULT_LANGUAGE)
         self.current_voice = tk.StringVar(value=VOICE_CONFIG["am"]["male"])
-        self.speech_rate = tk.StringVar(value="+0%")
+        self.speech_rate = tk.StringVar(value="+15%")  # Fast, lively conversational default
         self.is_continuous = tk.BooleanVar(value=False)
         self.status_state = "idle"
         self._listen_thread: Optional[threading.Thread] = None
@@ -202,7 +202,7 @@ class AssistantApp(ctk.CTk):
             height=14,
             command=self._on_speed_changed
         )
-        self.speed_slider.set(0)
+        self.speed_slider.set(15)  # Fast by default
         self.speed_slider.grid(row=6, column=0, padx=20, pady=(0, 16), sticky="ew")
 
         # Continuous Listening Toggle
@@ -584,6 +584,10 @@ class AssistantApp(ctk.CTk):
         )
 
     def _toggle_listening(self):
+        # 1. Voice Barge-In: If currently speaking, stop TTS immediately!
+        if self.tts_engine.is_speaking():
+            self.tts_engine.stop()
+
         if self.status_state == "listening":
             self._stop_listening = True
             self.audio_recorder.stop_recording()
@@ -592,6 +596,9 @@ class AssistantApp(ctk.CTk):
             self._start_listening_thread()
 
     def _start_listening_thread(self):
+        # Stop speech when starting to listen
+        if self.tts_engine.is_speaking():
+            self.tts_engine.stop()
         if self._listen_thread and self._listen_thread.is_alive():
             return
         self._stop_listening = False
@@ -603,9 +610,15 @@ class AssistantApp(ctk.CTk):
             self._msg_queue.put(("status", "listening", "Listening for speech..."))
 
             def on_speech_start():
+                # Barge-in: Cut off speech as soon as user starts speaking!
+                if self.tts_engine.is_speaking():
+                    self.tts_engine.stop()
                 self._msg_queue.put(("status", "listening", "Recording audio..."))
 
             def on_audio_level(rms: float):
+                # If audio level is high and TTS is speaking, interrupt!
+                if rms > 0.02 and self.tts_engine.is_speaking():
+                    self.tts_engine.stop()
                 self._msg_queue.put(("energy", rms))
 
             wav_buffer = self.audio_recorder.record_audio_buffer(

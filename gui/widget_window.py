@@ -244,6 +244,10 @@ class FloatingWidget(ctk.CTkToplevel):
             self.pill_frame.configure(border_color=WIDGET_THEME["border_speaking"])
 
     def _toggle_listening(self):
+        # 1. Barge-in: Cut off speech immediately on mic toggle
+        if self.tts_engine.is_speaking():
+            self.tts_engine.stop()
+
         if self.status_state == "listening":
             self._stop_listening = True
             self.audio_recorder.stop_recording()
@@ -252,6 +256,8 @@ class FloatingWidget(ctk.CTkToplevel):
             self._start_listening()
 
     def _start_listening(self):
+        if self.tts_engine.is_speaking():
+            self.tts_engine.stop()
         if self._listen_thread and self._listen_thread.is_alive():
             return
         self._stop_listening = False
@@ -260,8 +266,19 @@ class FloatingWidget(ctk.CTkToplevel):
 
     def _listen_worker(self):
         self._msg_queue.put(("status", "listening", "Speak now..."))
+
+        def on_speech_start():
+            if self.tts_engine.is_speaking():
+                self.tts_engine.stop()
+
+        def on_audio_level(rms: float):
+            if rms > 0.02 and self.tts_engine.is_speaking():
+                self.tts_engine.stop()
         
-        wav_buf = self.audio_recorder.record_audio_buffer()
+        wav_buf = self.audio_recorder.record_audio_buffer(
+            on_speech_start=on_speech_start,
+            on_audio_level=on_audio_level
+        )
         if not wav_buf or self._stop_listening:
             self._msg_queue.put(("status", "idle", "Ready to listen"))
             return
@@ -289,6 +306,7 @@ class FloatingWidget(ctk.CTkToplevel):
                 text=spoken_resp,
                 language=self.current_language,
                 voice=voice,
+                rate="+15%",
                 on_finish=on_tts_finish
             )
         else:

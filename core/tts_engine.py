@@ -1,8 +1,10 @@
 """
-Text-to-Speech (TTS) Engine for Yakob Desktop Assistant.
-Synthesizes ultra-natural, human-like neural speech using Microsoft Edge Neural voices (Edge-TTS)
-with prosody enhancements and fallback to gTTS.
-Manages asynchronous non-blocking audio playback using pygame.mixer.
+Enhanced Text-to-Speech (TTS) Engine for Yakob Desktop Assistant.
+Supports:
+1. Microsoft Edge Neural HD Voices (am-ET-AmehaNeural, en-US-AndrewMultilingualNeural, Guy, Mekdes, Ava)
+2. ElevenLabs Ultra-Realistic Voice API (Optional)
+3. Instant Voice Barge-In / Interruption
+4. Fast Default Speech Pace (+15%)
 """
 import os
 import re
@@ -11,22 +13,25 @@ import queue
 import asyncio
 import tempfile
 import threading
+import urllib.request
+import json
 import pygame
 from typing import Optional, Callable
 from gtts import gTTS
 import edge_tts
 
-from config import VOICE_CONFIG
+from config import VOICE_CONFIG, DEFAULT_SPEECH_RATE
 
 
 class TTSEngine:
-    def __init__(self):
+    def __init__(self, elevenlabs_api_key: Optional[str] = None):
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=24000, size=-16, channels=2, buffer=512)
         except Exception as e:
             print(f"[TTSEngine] Pygame mixer init note: {e}")
             
+        self.elevenlabs_api_key = elevenlabs_api_key or os.environ.get("ELEVENLABS_API_KEY")
         self._is_speaking = False
         self._stop_requested = False
         self._playback_thread: Optional[threading.Thread] = None
@@ -36,39 +41,40 @@ class TTSEngine:
         return self._is_speaking
 
     def stop(self):
-        """Immediately halts any currently playing speech."""
+        """Immediately interrupts and halts any active audio playback."""
         self._stop_requested = True
         try:
-            if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+            if pygame.mixer.get_init():
                 pygame.mixer.music.stop()
                 pygame.mixer.music.unload()
         except Exception:
             pass
-        self._is_speaking = False
+        with self._lock:
+            self._is_speaking = False
 
     def speak(
         self,
         text: str,
         language: str = "am",
         voice: Optional[str] = None,
-        rate: str = "+0%",
+        rate: str = DEFAULT_SPEECH_RATE,
         pitch: str = "+0Hz",
         on_start: Optional[Callable[[], None]] = None,
         on_finish: Optional[Callable[[], None]] = None,
         block: bool = False
     ):
         """
-        Asynchronously synthesizes and speaks the given text with human-like prosody.
+        Asynchronously synthesizes and plays speech with instant barge-in support.
         """
         if not text or not text.strip():
             if on_finish:
                 on_finish()
             return
 
+        # Interrupt any previous speech immediately
         self.stop()
         self._stop_requested = False
 
-        # Clean text for human-like natural reading
         clean_text = self._prepare_human_text(text)
 
         if language not in ["am", "en"]:
@@ -86,6 +92,7 @@ class TTSEngine:
                 
             audio_path = None
             try:
+                # 1. Synthesize Audio
                 audio_path = self._synthesize_audio(clean_text, language, voice, rate, pitch)
                 
                 if self._stop_requested or not audio_path or not os.path.exists(audio_path):
@@ -100,8 +107,9 @@ class TTSEngine:
                 pygame.mixer.music.load(audio_path)
                 pygame.mixer.music.play()
 
+                # Poll playback with fast check for instant cancellation
                 while pygame.mixer.music.get_busy() and not self._stop_requested:
-                    time.sleep(0.05)
+                    time.sleep(0.02)
 
                 if self._stop_requested:
                     pygame.mixer.music.stop()
@@ -114,7 +122,7 @@ class TTSEngine:
                 with self._lock:
                     self._is_speaking = False
                 
-                if on_finish:
+                if on_finish and not self._stop_requested:
                     try:
                         on_finish()
                     except Exception as e:
@@ -133,13 +141,11 @@ class TTSEngine:
             self._playback_thread.start()
 
     def _prepare_human_text(self, text: str) -> str:
-        """Cleans and punctuates text to give speech a natural, warm rhythm."""
-        # Strip emoji icons and markdown formatting
-        cleaned = re.sub(r'[🎙️🤖🧑🕒📅🔋🔊🔉🔇🔒▶️🔍🚀🌐🧮👋✨🙏😄💡❓⏱️☀️🪙🎲📰🧩📜🎵🎤👨‍💻🔔]', '', text)
+        """Cleans formatting and optimizes text for fast, natural rhythm."""
+        cleaned = re.sub(r'[🎙️🤖🧑🕒📅🔋🔊🔉🔇🔒▶️🔍🚀🌐🧮👋✨🙏😄💡❓⏱️☀️🪙🎲📰🧩📜🎵🎤👨‍💻🔔✦]', '', text)
         cleaned = re.sub(r'[*_#`~]', '', cleaned)
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         
-        # Ensure sentence ending punctuation for natural voice cadence
         if cleaned and not cleaned[-1] in '.!?።!':
             cleaned += '።' if any('\u1200' <= c <= '\u137F' for c in cleaned) else '.'
             
@@ -150,14 +156,38 @@ class TTSEngine:
         text: str,
         language: str,
         voice: str,
-        rate: str = "+0%",
+        rate: str = DEFAULT_SPEECH_RATE,
         pitch: str = "+0Hz"
     ) -> Optional[str]:
-        """Synthesizes text to a temporary MP3 file using Edge-TTS with gTTS fallback."""
+        """Synthesizes text to MP3 with ElevenLabs or Microsoft Edge-TTS."""
         temp_fd, temp_path = tempfile.mkstemp(suffix=".mp3")
         os.close(temp_fd)
 
-        # Primary method: Microsoft Edge Neural TTS with customized rate and pitch
+        # 1. Try ElevenLabs if configured
+        if self.elevenlabs_api_key and language == "en":
+            try:
+                # Adam or custom male voice
+                voice_id = "pNInz6obpgDQGcFmaJgB"  # Adam (deep male voice)
+                url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                headers = {
+                    "xi-api-key": self.elevenlabs_api_key,
+                    "Content-Type": "application/json"
+                }
+                body = {
+                    "text": text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
+                }
+                req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    with open(temp_path, "wb") as f:
+                        f.write(resp.read())
+                    if os.path.exists(temp_path) and os.path.getsize(temp_path) > 200:
+                        return temp_path
+            except Exception as e:
+                print(f"[TTSEngine] ElevenLabs fallback to Edge-TTS: {e}")
+
+        # 2. Primary High-Definition: Microsoft Edge Neural TTS with Fast Rate (+15%)
         try:
             async def _edge_gen():
                 communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
@@ -176,7 +206,7 @@ class TTSEngine:
         except Exception as e:
             print(f"[TTSEngine] Edge-TTS note, falling back to gTTS: {e}")
 
-        # Fallback method: gTTS
+        # 3. Fallback: gTTS
         try:
             gtts_lang = "am" if language == "am" else "en"
             tts = gTTS(text=text, lang=gtts_lang, slow=False)
@@ -184,7 +214,7 @@ class TTSEngine:
             if os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
                 return temp_path
         except Exception as e:
-            print(f"[TTSEngine] gTTS fallback failed: {e}")
+            print(f"[TTSEngine] gTTS fallback error: {e}")
 
         if os.path.exists(temp_path):
             try:

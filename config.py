@@ -11,6 +11,7 @@ ASSISTANT_VERSION = "2.0.0"
 
 # Language & Default Male Voice Configuration
 DEFAULT_LANGUAGE = "am"  # "am" (Amharic), "en" (English), or "auto"
+DEFAULT_SPEECH_RATE = "+15%"  # Lively, fast, conversational speech speed
 
 VOICE_CONFIG = {
     "am": {
@@ -21,9 +22,11 @@ VOICE_CONFIG = {
         "name": "አማርኛ (Amharic)"
     },
     "en": {
-        "male": "en-US-GuyNeural",             # Default Male Voice
-        "female": "en-US-JennyNeural",
-        "default": "en-US-GuyNeural",          # Set to Male by default
+        "male": "en-US-AndrewMultilingualNeural",  # Ultra-modern natural multilingual male voice
+        "male_alt": "en-US-GuyNeural",
+        "female": "en-US-AvaMultilingualNeural",
+        "female_alt": "en-US-JennyNeural",
+        "default": "en-US-AndrewMultilingualNeural",
         "stt_code": "en-US",
         "name": "English"
     }
