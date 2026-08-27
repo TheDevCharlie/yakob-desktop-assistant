@@ -93,6 +93,13 @@ class TestCommandProcessor(unittest.TestCase):
         tts.set_volume(-0.2)  # Clamps to 0.0
         self.assertEqual(tts.volume, 0.0)
 
+    def test_bilingual_translator_pipeline(self):
+        from core.translator import AmharicEnglishTranslator
+        translator = AmharicEnglishTranslator()
+        # Test phrase translation
+        en = translator.translate_amharic_to_english("የፈረንሳይ ዋና ከተማ")
+        self.assertEqual(en, "capital of France")
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")

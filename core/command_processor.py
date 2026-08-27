@@ -23,6 +23,7 @@ from config import (
 )
 from core.system_controller import SystemController
 from core.llm_brain import LLMBrain
+from core.translator import AmharicEnglishTranslator
 
 
 class CommandProcessor:
@@ -30,11 +31,13 @@ class CommandProcessor:
         self,
         system_controller: Optional[SystemController] = None,
         on_timer_expire_callback: Optional[Callable[[str, str], None]] = None,
-        llm_brain: Optional[LLMBrain] = None
+        llm_brain: Optional[LLMBrain] = None,
+        translator: Optional[AmharicEnglishTranslator] = None
     ):
         self.sys_ctrl = system_controller or SystemController()
         self.on_timer_expire = on_timer_expire_callback
         self.llm_brain = llm_brain or LLMBrain()
+        self.translator = translator or AmharicEnglishTranslator()
 
     def process_command(self, raw_text: str, language: str = "am") -> Tuple[str, str, Dict[str, Any]]:
         """
