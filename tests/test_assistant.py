@@ -60,6 +60,20 @@ class TestCommandProcessor(unittest.TestCase):
         spoken_m, _, meta_m = self.processor.process_command("ሙዚቃ አጫውት", language="am")
         self.assertEqual(meta_m.get("action"), "play_music")
 
+    def test_trivia_knowledge_amharic(self):
+        spoken_t, _, meta_t = self.processor.process_command("የፈረንሳይ ዋና ከተማ ማን ነው?", language="am")
+        self.assertIn("ፓሪስ", spoken_t)
+
+        spoken_riv, _, _ = self.processor.process_command("በዓለም ላይ ረጅሙ ወንዝ ምንድን ነው?", language="am")
+        self.assertIn("አባይ", spoken_riv)
+
+    def test_trivia_knowledge_english(self):
+        spoken_cap, _, _ = self.processor.process_command("what is the capital of France?", language="en")
+        self.assertIn("Paris", spoken_cap)
+
+        spoken_moon, _, _ = self.processor.process_command("who was the first person to walk on the moon?", language="en")
+        self.assertIn("Neil Armstrong", spoken_moon)
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")

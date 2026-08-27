@@ -407,13 +407,12 @@ class CommandProcessor:
             return reply, f"💡 {reply}", {"action": "conversation", "topic": "help"}
 
         # -------------------------------------------------------------
-        # 19. LLM GENERATION & UNKNOWN FALLBACK
+        # 19. TRIVIA & LLM CONVERSATIONAL GENERATION
         # -------------------------------------------------------------
-        # If Gemini LLM is configured and available, generate a smart human-like response!
-        if self.llm_brain.is_available():
-            llm_text = self.llm_brain.generate_response(raw_text, language=detected_lang)
-            if llm_text:
-                return llm_text, f"✨ {llm_text}", {"action": "llm_chat", "model": "gemini-2.5-flash"}
+        # Check LLM / Offline Trivia Engine (Gemini 2.5 Flash / Groq / Curated Trivia Knowledge)
+        trivia_or_llm_answer = self.llm_brain.answer_trivia_or_chat(raw_text, language=detected_lang)
+        if trivia_or_llm_answer:
+            return trivia_or_llm_answer, f"💡 {trivia_or_llm_answer}", {"action": "trivia_or_llm"}
 
         fallback = random.choice(CONVERSATION_RESPONSES["unknown"][detected_lang])
         return fallback, f"❓ {fallback}", {"action": "unknown"}

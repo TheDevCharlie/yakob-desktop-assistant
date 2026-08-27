@@ -238,6 +238,22 @@ class AssistantApp(ctk.CTk):
         )
         self.widget_btn.grid(row=9, column=0, padx=20, pady=(0, 8), sticky="ew")
 
+        # AI Intelligence Settings Button
+        self.ai_btn = ctk.CTkButton(
+            self.sidebar,
+            text="🧠 AI & Trivia Brain Settings",
+            fg_color=THEME["card_bg"],
+            hover_color=THEME["card_hover"],
+            border_width=1,
+            border_color=THEME["border"],
+            text_color=THEME["primary"],
+            corner_radius=8,
+            height=34,
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            command=self._open_ai_settings_dialog
+        )
+        self.ai_btn.grid(row=10, column=0, padx=20, pady=(0, 8), sticky="ew")
+
         # Test Voice Button
         self.test_voice_btn = ctk.CTkButton(
             self.sidebar,
@@ -252,7 +268,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._test_current_voice
         )
-        self.test_voice_btn.grid(row=10, column=0, padx=20, pady=(0, 8), sticky="ew")
+        self.test_voice_btn.grid(row=11, column=0, padx=20, pady=(0, 8), sticky="ew")
 
         # Stop Speech Button
         self.stop_tts_btn = ctk.CTkButton(
@@ -266,7 +282,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11),
             command=self._stop_tts
         )
-        self.stop_tts_btn.grid(row=11, column=0, padx=20, pady=(0, 4), sticky="ew")
+        self.stop_tts_btn.grid(row=12, column=0, padx=20, pady=(0, 4), sticky="ew")
 
         # Clear Log Button
         self.clear_btn = ctk.CTkButton(
@@ -280,7 +296,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11),
             command=self._clear_chat
         )
-        self.clear_btn.grid(row=12, column=0, padx=20, pady=(0, 20), sticky="ew")
+        self.clear_btn.grid(row=13, column=0, padx=20, pady=(0, 20), sticky="ew")
 
         # -------------------------------------------------------------
         # 2. MAIN CONVERSATION & HERO AREA
@@ -737,6 +753,95 @@ class AssistantApp(ctk.CTk):
     def _clear_chat(self):
         for widget in self.chat_container.winfo_children():
             widget.destroy()
+
+    def _open_ai_settings_dialog(self):
+        """Opens a sleek minimalist modal to configure Gemini / Groq / OpenAI API keys."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("AI Intelligence & Trivia Settings")
+        dialog.geometry("460x360")
+        dialog.attributes("-topmost", True)
+        dialog.configure(fg_color=THEME["bg_dark"])
+
+        title = ctk.CTkLabel(
+            dialog,
+            text="🧠 Configure LLM & Trivia Engine",
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            text_color=THEME["text_primary"]
+        )
+        title.pack(anchor="w", padx=24, pady=(20, 6))
+
+        desc = ctk.CTkLabel(
+            dialog,
+            text="Select an AI model for deep trivia, general knowledge, and conversational reasoning in Amharic & English:",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=THEME["text_secondary"],
+            wraplength=410,
+            justify="left"
+        )
+        desc.pack(anchor="w", padx=24, pady=(0, 16))
+
+        # Provider Selector
+        prov_lbl = ctk.CTkLabel(dialog, text="AI PROVIDER", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        prov_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+
+        prov_menu = ctk.CTkOptionMenu(
+            dialog,
+            values=["Google Gemini 2.5 Flash (Recommended)", "Groq (Llama 3.3 70B)", "OpenAI (GPT-4o-mini)", "Built-in Offline Trivia Engine"],
+            fg_color=THEME["card_bg"],
+            button_color=THEME["border"],
+            dropdown_fg_color=THEME["card_bg"],
+            dropdown_text_color=THEME["text_primary"],
+            text_color=THEME["text_primary"],
+            corner_radius=8,
+            height=34
+        )
+        prov_menu.pack(fill="x", padx=24, pady=(0, 14))
+
+        # API Key Input
+        key_lbl = ctk.CTkLabel(dialog, text="API KEY (Optional if using built-in offline engine)", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        key_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+
+        key_entry = ctk.CTkEntry(
+            dialog,
+            placeholder_text="Paste your Gemini / Groq / OpenAI API key here...",
+            placeholder_text_color=THEME["text_muted"],
+            fg_color=THEME["card_bg"],
+            border_color=THEME["border"],
+            text_color=THEME["text_primary"],
+            show="•",
+            height=36
+        )
+        key_entry.pack(fill="x", padx=24, pady=(0, 20))
+
+        # Fill existing key if present
+        if self.command_processor.llm_brain.api_key:
+            key_entry.insert(0, self.command_processor.llm_brain.api_key)
+
+        def save_and_close():
+            sel = prov_menu.get()
+            key = key_entry.get().strip()
+            
+            provider_map = {
+                "Google Gemini 2.5 Flash (Recommended)": "gemini",
+                "Groq (Llama 3.3 70B)": "groq",
+                "OpenAI (GPT-4o-mini)": "openai",
+                "Built-in Offline Trivia Engine": "offline"
+            }
+            chosen_provider = provider_map.get(sel, "gemini")
+            self.command_processor.llm_brain.set_config(chosen_provider, key)
+            self._append_chat_card("bot", f"🧠 AI Model updated to: {sel}")
+            dialog.destroy()
+
+        save_btn = ctk.CTkButton(
+            dialog,
+            text="Save Settings ✦",
+            fg_color=THEME["primary"],
+            hover_color=THEME["primary_hover"],
+            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
+            height=36,
+            command=save_and_close
+        )
+        save_btn.pack(fill="x", padx=24, pady=(0, 10))
 
     def _switch_to_widget_mode(self):
         self.withdraw()
