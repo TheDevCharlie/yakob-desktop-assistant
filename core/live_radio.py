@@ -57,62 +57,81 @@ class LiveRadioStreamer:
             on_status_change(f"Connecting: {station_name[:24]}...")
 
         def _stream_worker():
-            try:
-                cmd = [
-                    self.ffmpeg_exe,
-                    "-reconnect", "1",
-                    "-reconnect_streamed", "1",
-                    "-reconnect_delay_max", "5",
-                    "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                    "-i", stream_url,
-                    "-f", "s16le",
-                    "-ar", "44100",
-                    "-ac", "2",
-                    "-"
-                ]
+            active_url = stream_url
+            for attempt in range(2):
+                try:
+                    cmd = [
+                        self.ffmpeg_exe,
+                        "-reconnect", "1",
+                        "-reconnect_streamed", "1",
+                        "-reconnect_delay_max", "5",
+                        "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                        "-i", active_url,
+                        "-f", "s16le",
+                        "-ar", "44100",
+                        "-ac", "2",
+                        "-"
+                    ]
 
-                self._proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    bufsize=1024 * 64
-                )
+                    self._proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        bufsize=1024 * 64
+                    )
 
-                self._stream = sd.RawOutputStream(
-                    samplerate=44100,
-                    channels=2,
-                    dtype='int16'
-                )
-                self._stream.start()
-                self.is_paused = False
+                    self._stream = sd.RawOutputStream(
+                        samplerate=44100,
+                        channels=2,
+                        dtype='int16'
+                    )
+                    self._stream.start()
+                    self.is_paused = False
 
-                if on_status_change:
-                    on_status_change(f"Live: {station_name[:24]}")
-
-                chunk_size = 4096  # ~23ms chunks for low-latency streaming
-                while not self._stop_requested and self._proc:
-                    if self.is_paused:
-                        time.sleep(0.1)
-                        continue
-
-                    raw_data = self._proc.stdout.read(chunk_size)
-                    if not raw_data:
+                    chunk_size = 4096
+                    first_chunk = self._proc.stdout.read(chunk_size)
+                    if not first_chunk:
+                        # Fallback to secondary mirror if initial stream fails
+                        if attempt == 0 and station.get("fallback_url"):
+                            active_url = station.get("fallback_url")
+                            self._cleanup()
+                            continue
                         break
 
-                    # Apply real-time volume scaling
-                    if self.volume < 0.99:
-                        audio_np = np.frombuffer(raw_data, dtype=np.int16)
-                        scaled_np = (audio_np * self.volume).astype(np.int16)
-                        self._stream.write(scaled_np.tobytes())
-                    else:
-                        self._stream.write(raw_data)
+                    if on_status_change:
+                        on_status_change(f"Live: {station_name[:24]}")
 
-            except Exception as e:
-                print(f"[LiveRadio] Stream error: {e}")
-                if on_status_change:
-                    on_status_change("Stream disconnected")
-            finally:
-                self._cleanup()
+                    self._stream.write(first_chunk)
+
+                    while not self._stop_requested and self._proc:
+                        if self.is_paused:
+                            time.sleep(0.1)
+                            continue
+
+                        raw_data = self._proc.stdout.read(chunk_size)
+                        if not raw_data:
+                            break
+
+                        # Apply real-time volume scaling
+                        if self.volume < 0.99:
+                            audio_np = np.frombuffer(raw_data, dtype=np.int16)
+                            scaled_np = (audio_np * self.volume).astype(np.int16)
+                            self._stream.write(scaled_np.tobytes())
+                        else:
+                            self._stream.write(raw_data)
+
+                    break
+                except Exception as e:
+                    print(f"[LiveRadio] Stream note (attempt {attempt}): {e}")
+                    if attempt == 0 and station.get("fallback_url"):
+                        active_url = station.get("fallback_url")
+                        self._cleanup()
+                        continue
+                    if on_status_change:
+                        on_status_change("Stream disconnected")
+                    break
+                finally:
+                    self._cleanup()
 
         self._stream_thread = threading.Thread(target=_stream_worker, daemon=True)
         self._stream_thread.start()
