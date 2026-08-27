@@ -110,7 +110,7 @@ class FloatingWidget(ctk.CTkToplevel):
         self.pill_frame.bind("<Button-1>", self._start_drag)
         self.pill_frame.bind("<B1-Motion>", self._do_drag)
 
-        # Left: Sleek Circular Microphone Button
+        # Left: Sleek Circular Microphone Button (Click to Toggle, Hold for PTT)
         self.mic_btn = ctk.CTkButton(
             self.pill_frame,
             text="🎙",
@@ -121,10 +121,11 @@ class FloatingWidget(ctk.CTkToplevel):
             fg_color=WIDGET_THEME["mic_idle"],
             hover_color=WIDGET_THEME["mic_idle_hover"],
             border_width=1,
-            border_color=WIDGET_THEME["border_idle"],
-            command=self._toggle_listening
+            border_color=WIDGET_THEME["border_idle"]
         )
         self.mic_btn.pack(side="left", padx=(12, 10), pady=12)
+        self.mic_btn.bind("<ButtonPress-1>", lambda e: self._on_widget_ptt_press())
+        self.mic_btn.bind("<ButtonRelease-1>", lambda e: self._on_widget_ptt_release())
 
         # Center: Minimalist Label Stack
         self.info_box = ctk.CTkFrame(self.pill_frame, fg_color="transparent")
@@ -134,7 +135,7 @@ class FloatingWidget(ctk.CTkToplevel):
 
         self.name_label = ctk.CTkLabel(
             self.info_box,
-            text=f"✦ {ASSISTANT_NAME} ({ASSISTANT_NAME_AM})",
+            text=f"✦ {ASSISTANT_NAME}",
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             text_color=WIDGET_THEME["text_primary"]
         )
@@ -201,10 +202,10 @@ class FloatingWidget(ctk.CTkToplevel):
         )
         self.close_btn.pack(side="left")
 
-        # Bottom row: Language Pill
+        # Bottom row: Language Pill (Default to English)
         self.lang_btn = ctk.CTkButton(
             self.btn_col,
-            text="አማርኛ",
+            text="English",
             width=50,
             height=22,
             corner_radius=6,
@@ -286,6 +287,63 @@ class FloatingWidget(ctk.CTkToplevel):
             )
             self.status_label.configure(text=text or "Speaking...")
             self.pill_frame.configure(border_color=WIDGET_THEME["border_speaking"])
+
+    def _on_widget_ptt_press(self):
+        if hasattr(self, '_ptt_held') and self._ptt_held:
+            return
+        self._ptt_held = True
+        if self.tts_engine.is_speaking():
+            self.tts_engine.stop()
+        sfx.play_wake()
+        self.set_status("listening", "Recording (Hold)...")
+        self.audio_recorder.start_ptt_recording()
+
+    def _on_widget_ptt_release(self):
+        if not getattr(self, '_ptt_held', False):
+            return
+        self._ptt_held = False
+        self.set_status("processing", "Transcribing...")
+
+        def _finish():
+            wav_buf = self.audio_recorder.stop_ptt_recording()
+            if not wav_buf:
+                self._msg_queue.put(("status", "idle"))
+                return
+
+            text, detected_lang, err = self.speech_recognizer.transcribe_wav_buffer(
+                wav_buf,
+                language=self.current_language
+            )
+            if text:
+                sfx.play_done()
+                spoken_resp, display_resp, meta = self.command_processor.process_command(
+                    raw_text=text,
+                    language=detected_lang or self.current_language
+                )
+                preview = (display_resp[:26] + "..") if len(display_resp) > 26 else display_resp
+                self._msg_queue.put(("status", "speaking", preview))
+                self.after(50, lambda: show_response_toast(self, display_resp))
+
+                if self.is_silent_mode:
+                    self.tts_engine.stop()
+                    self._msg_queue.put(("status", "idle"))
+                    return
+
+                def on_tts_finish():
+                    self._msg_queue.put(("status", "idle"))
+
+                voice = VOICE_CONFIG.get(self.current_language, VOICE_CONFIG["en"])["default"]
+                self.tts_engine.speak(
+                    text=spoken_resp,
+                    language=self.current_language,
+                    voice=voice,
+                    rate="+15%",
+                    on_finish=on_tts_finish
+                )
+            else:
+                self._msg_queue.put(("status", "idle", "Could not hear"))
+
+        threading.Thread(target=_finish, daemon=True).start()
 
     def _toggle_listening(self):
         # 1. Barge-in: Cut off speech immediately on mic toggle

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from core.command_processor import CommandProcessor
 from core.tts_engine import TTSEngine
 from core.system_controller import SystemController
-from config import VOICE_CONFIG
+from config import VOICE_CONFIG, DEFAULT_LANGUAGE
 
 
 class TestCommandProcessor(unittest.TestCase):
@@ -29,6 +29,10 @@ class TestCommandProcessor(unittest.TestCase):
         self.assertEqual(meta.get("action"), "timer")
         self.assertEqual(meta.get("seconds"), 10)
         self.assertIn("Timer", spoken)
+
+    def test_default_config(self):
+        self.assertEqual(DEFAULT_LANGUAGE, "en")
+        self.assertIn("en-US-AndrewMultilingualNeural", VOICE_CONFIG["en"]["male"])
 
     def test_alexa_weather(self):
         spoken, display, meta = self.processor.process_command("የአየር ሁኔታ ምን ይመስላል?", language="am")

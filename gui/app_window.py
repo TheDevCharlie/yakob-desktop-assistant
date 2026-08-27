@@ -65,20 +65,21 @@ class AssistantApp(ctk.CTk):
         )
 
         # State Variables
-        self.current_language = tk.StringVar(value=DEFAULT_LANGUAGE)
-        self.current_voice = tk.StringVar(value=VOICE_CONFIG["am"]["male"])
+        self.current_language = tk.StringVar(value="en")  # English by default
+        self.current_voice = tk.StringVar(value=VOICE_CONFIG["en"]["default"])  # Andrew Multilingual Neural
         self.speech_rate = tk.StringVar(value="+15%")  # Fast, lively conversational default
         self.is_continuous = tk.BooleanVar(value=False)
         self.chatbot_mode = tk.BooleanVar(value=False)  # Silent Text Chatbot Mode
         self.status_state = "idle"
         self._listen_thread: Optional[threading.Thread] = None
         self._stop_listening = False
+        self._ptt_is_held = False
         self._msg_queue = queue.Queue()
         self.tray_icon = None
         self._active_settings_dialog = None  # Single-instance dialog tracker
 
         # Window Setup
-        self.title(f"{ASSISTANT_NAME} ({ASSISTANT_NAME_AM})")
+        self.title(f"{ASSISTANT_NAME} - Desktop Voice Assistant")
         self.geometry("960x720")
         self.minsize(840, 600)
         self.configure(fg_color=THEME["bg_dark"])
@@ -90,7 +91,7 @@ class AssistantApp(ctk.CTk):
         self._create_layout()
         self._process_queue()
 
-        # Initialize Global Hotkey (Alt+Y)
+        # Initialize Global Hotkey (Alt+Y & F8 Push-to-Talk)
         self._init_global_hotkey()
 
         # Initialize System Tray in Background
@@ -148,7 +149,7 @@ class AssistantApp(ctk.CTk):
 
         self.lang_seg = ctk.CTkSegmentedButton(
             self.sidebar,
-            values=["አማርኛ", "English", "Auto"],
+            values=["English", "አማርኛ", "Auto"],
             selected_color=THEME["primary"],
             selected_hover_color=THEME["primary_hover"],
             unselected_color=THEME["card_bg"],
@@ -159,7 +160,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._on_language_changed
         )
-        self.lang_seg.set("አማርኛ")
+        self.lang_seg.set("English")  # Default to English
         self.lang_seg.grid(row=2, column=0, padx=20, pady=(0, 16), sticky="ew")
 
         # Voice Selector
@@ -174,8 +175,9 @@ class AssistantApp(ctk.CTk):
         self.voice_option = ctk.CTkOptionMenu(
             self.sidebar,
             values=[
-                "Ameha (Amharic Male)",
+                "Andrew (Multilingual Male)",
                 "Guy (English Male)",
+                "Ameha (Amharic Male)",
                 "Mekdes (Amharic Female)",
                 "Jenny (English Female)"
             ],
@@ -191,7 +193,7 @@ class AssistantApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self._on_voice_changed
         )
-        self.voice_option.set("Ameha (Amharic Male)")
+        self.voice_option.set("Andrew (Multilingual Male)")
         self.voice_option.grid(row=4, column=0, padx=20, pady=(0, 16), sticky="ew")
 
         # Speed Slider
@@ -367,21 +369,41 @@ class AssistantApp(ctk.CTk):
         self.hero_card.grid(row=0, column=0, sticky="ew", pady=(0, 16))
         self.hero_card.grid_columnconfigure(1, weight=1)
 
-        # Microphone Button (Round Pill with Hover Glow)
+        # Button Group Container (Toggle Mic + PTT)
+        self.mic_group = ctk.CTkFrame(self.hero_card, fg_color="transparent")
+        self.mic_group.grid(row=0, column=0, padx=(16, 14), pady=14)
+
+        # 1. Microphone Toggle Button
         self.mic_btn = ctk.CTkButton(
-            self.hero_card,
+            self.mic_group,
             text="🎙",
             font=ctk.CTkFont(size=20),
-            width=54,
-            height=54,
-            corner_radius=27,
+            width=50,
+            height=50,
+            corner_radius=25,
             fg_color=THEME["mic_idle"],
             hover_color=THEME["mic_idle_hover"],
             border_width=1,
             border_color=THEME["border_focus"],
             command=self._toggle_listening
         )
-        self.mic_btn.grid(row=0, column=0, padx=(16, 14), pady=14)
+        self.mic_btn.pack(side="left", padx=(0, 8))
+
+        # 2. Push-to-Talk Button (Hold F8 or Click & Hold)
+        self.ptt_btn = ctk.CTkButton(
+            self.mic_group,
+            text="Hold F8 to Talk",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            height=50,
+            corner_radius=12,
+            fg_color="#1e293b",
+            hover_color="#334155",
+            border_width=1,
+            border_color=THEME["border"]
+        )
+        self.ptt_btn.pack(side="left")
+        self.ptt_btn.bind("<ButtonPress-1>", lambda e: self._on_ptt_press())
+        self.ptt_btn.bind("<ButtonRelease-1>", lambda e: self._on_ptt_release())
 
         # Status Label & Indicator
         self.status_box = ctk.CTkFrame(self.hero_card, fg_color="transparent")
@@ -397,7 +419,7 @@ class AssistantApp(ctk.CTk):
 
         self.status_sub = ctk.CTkLabel(
             self.status_box,
-            text="Click mic or choose a quick prompt below",
+            text="Hold F8 (or Space), click mic, or type a command",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color=THEME["text_secondary"]
         )
@@ -611,18 +633,66 @@ class AssistantApp(ctk.CTk):
             pass
         self.after(40, self._process_queue)
 
-    # -----------------------------------------------------------------
-    # WORKFLOWS
-    # -----------------------------------------------------------------
+    # -------------------------------------------------------------
+    # WORKFLOWS & PUSH-TO-TALK
+    # -------------------------------------------------------------
     def _initial_greeting(self):
-        msg = f"ሰላም! እኔ {ASSISTANT_NAME_AM} ({ASSISTANT_NAME}) ነኝ። በምን ልርዳዎት?"
+        msg = f"Hello! I am {ASSISTANT_NAME}, your AI desktop voice assistant. How can I help you today?"
         self._append_chat_card("bot", msg)
-        self.tts_engine.speak(
-            text=msg,
-            language="am",
-            voice=self._get_current_voice_code(),
-            rate=self.speech_rate.get()
-        )
+        if not self.chatbot_mode.get():
+            self.tts_engine.speak(
+                text=msg,
+                language="en",
+                voice=self._get_current_voice_code(),
+                rate=self.speech_rate.get()
+            )
+
+    def _on_ptt_press(self):
+        """Called when PTT key (F8) or button is held down."""
+        if self._ptt_is_held:
+            return
+        self._ptt_is_held = True
+
+        # Barge-in: cut off any speaking speech
+        if self.tts_engine.is_speaking():
+            self.tts_engine.stop()
+
+        sfx.play_wake()
+        self.ptt_btn.configure(fg_color="#dc2626", text="Recording...")
+        self.set_status("listening", "Recording (Hold key)...")
+        
+        def on_lvl(rms: float):
+            self._msg_queue.put(("energy", rms))
+
+        self.audio_recorder.start_ptt_recording(on_audio_level=on_lvl)
+
+    def _on_ptt_release(self):
+        """Called when PTT key (F8) or button is released."""
+        if not self._ptt_is_held:
+            return
+        self._ptt_is_held = False
+        self.ptt_btn.configure(fg_color="#1e293b", text="Hold F8 to Talk")
+        self.set_status("processing", "Transcribing PTT audio...")
+
+        def _finish_ptt():
+            wav_buf = self.audio_recorder.stop_ptt_recording()
+            if not wav_buf:
+                self._msg_queue.put(("status", "idle"))
+                return
+
+            selected_lang = self._get_active_lang_code()
+            text, used_lang, err = self.speech_recognizer.transcribe_wav_buffer(
+                wav_buffer=wav_buf,
+                language=selected_lang
+            )
+            if text:
+                sfx.play_done()
+                self._msg_queue.put(("chat", "user", text))
+                self._process_and_respond(text, used_lang or selected_lang)
+            else:
+                self._msg_queue.put(("status", "idle"))
+
+        threading.Thread(target=_finish_ptt, daemon=True).start()
 
     def _on_timer_expired(self, expire_text: str, dur: str):
         sfx.play_timer_alert()
@@ -988,10 +1058,14 @@ class AssistantApp(ctk.CTk):
     # GLOBAL HOTKEY & SYSTEM TRAY
     # -------------------------------------------------------------
     def _init_global_hotkey(self):
-        """Registers system-wide hotkey (Alt+Y) to summon Yakob from anywhere."""
+        """Registers system-wide hotkeys (Alt+Y for toggle, F8 for Push-to-Talk)."""
         def _bind():
             try:
+                # 1. Toggle listen hotkey (Alt+Y)
                 keyboard.add_hotkey("alt+y", self._on_hotkey_pressed)
+                # 2. Push-to-talk key (Hold F8)
+                keyboard.on_press_key("f8", lambda e: self.after(0, self._on_ptt_press))
+                keyboard.on_release_key("f8", lambda e: self.after(0, self._on_ptt_release))
             except Exception as e:
                 print(f"[AssistantApp] Global hotkey note: {e}")
         threading.Thread(target=_bind, daemon=True).start()

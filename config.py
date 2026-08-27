@@ -10,25 +10,27 @@ ASSISTANT_NAME_AM = "ያዕቆብ"
 ASSISTANT_VERSION = "2.0.0"
 
 # Language & Default Male Voice Configuration
-DEFAULT_LANGUAGE = "am"  # "am" (Amharic), "en" (English), or "auto"
+DEFAULT_LANGUAGE = "en"  # Default to English ("en"), switchable to Amharic ("am")
 DEFAULT_SPEECH_RATE = "+15%"  # Lively, fast, conversational speech speed
+DEFAULT_LLM_PROVIDER = "gemini"  # Gemini 2.5 Flash loaded by default
+DEFAULT_PTT_KEY = "f8"  # Global Push-to-Talk key (Hold F8 to speak, release to send)
 
 VOICE_CONFIG = {
-    "am": {
-        "male": "am-ET-AmehaNeural",          # Default Male Voice
-        "female": "am-ET-MekdesNeural",
-        "default": "am-ET-AmehaNeural",        # Set to Male by default
-        "stt_code": "am-ET",
-        "name": "አማርኛ (Amharic)"
-    },
     "en": {
-        "male": "en-US-AndrewMultilingualNeural",  # Ultra-modern natural multilingual male voice
+        "male": "en-US-AndrewMultilingualNeural",  # Flagship ultra-natural multilingual male voice
         "male_alt": "en-US-GuyNeural",
         "female": "en-US-AvaMultilingualNeural",
         "female_alt": "en-US-JennyNeural",
         "default": "en-US-AndrewMultilingualNeural",
         "stt_code": "en-US",
         "name": "English"
+    },
+    "am": {
+        "male": "am-ET-AmehaNeural",          # Flagship Amharic Male Voice
+        "female": "am-ET-MekdesNeural",
+        "default": "am-ET-AmehaNeural",
+        "stt_code": "am-ET",
+        "name": "አማርኛ (Amharic)"
     }
 }
 

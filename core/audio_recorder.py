@@ -133,9 +133,48 @@ class AudioRecorder:
         # Convert float32 [-1.0, 1.0] to int16 PCM
         audio_int16 = (np.clip(full_audio, -1.0, 1.0) * 32767).astype(np.int16)
         
-        # Write to in-memory WAV buffer
-        wav_buffer = io.BytesIO()
-        sf.write(wav_buffer, audio_int16, self.sample_rate, format='WAV', subtype='PCM_16')
-        wav_buffer.seek(0)
-        
         return wav_buffer
+
+    def start_ptt_recording(self, on_audio_level: Optional[Callable[[float], None]] = None):
+        """Starts explicit push-to-talk recording stream."""
+        self._ptt_frames = []
+        self._ptt_active = True
+        self._is_recording = True
+        chunk_size = int(self.sample_rate * 0.05)
+
+        def _ptt_worker():
+            try:
+                with sd.InputStream(samplerate=self.sample_rate, channels=self.channels, dtype='float32', blocksize=chunk_size) as stream:
+                    while self._ptt_active:
+                        chunk, _ = stream.read(chunk_size)
+                        self._ptt_frames.append(chunk.copy())
+                        if on_audio_level:
+                            rms = np.sqrt(np.mean(chunk**2))
+                            on_audio_level(float(rms))
+            except Exception as e:
+                print(f"[AudioRecorder] PTT error: {e}")
+            finally:
+                self._is_recording = False
+
+        self._ptt_thread = threading.Thread(target=_ptt_worker, daemon=True)
+        self._ptt_thread.start()
+
+    def stop_ptt_recording(self) -> Optional[io.BytesIO]:
+        """Stops push-to-talk recording and compiles WAV buffer immediately."""
+        self._ptt_active = False
+        if hasattr(self, '_ptt_thread') and self._ptt_thread.is_alive():
+            self._ptt_thread.join(timeout=0.4)
+
+        if not hasattr(self, '_ptt_frames') or not self._ptt_frames or len(self._ptt_frames) < 3:
+            return None
+
+        try:
+            full_audio = np.concatenate(self._ptt_frames, axis=0)
+            audio_int16 = (np.clip(full_audio, -1.0, 1.0) * 32767).astype(np.int16)
+            wav_buffer = io.BytesIO()
+            sf.write(wav_buffer, audio_int16, self.sample_rate, format='WAV', subtype='PCM_16')
+            wav_buffer.seek(0)
+            return wav_buffer
+        except Exception as e:
+            print(f"[AudioRecorder] PTT compile error: {e}")
+            return None
