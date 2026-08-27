@@ -1,9 +1,10 @@
 """
 Built-in YouTube Music Streamer & Playlist Curator for Yakob Assistant.
-Enables Yakob to stream music from YouTube directly through the app,
-control playback (play, pause, stop, volume, next), and curate custom playlists.
+Downloads audio tracks directly via yt-dlp & imageio-ffmpeg into MP3 cache,
+and streams them seamlessly via pygame.mixer with full playback controls.
 """
 import os
+import re
 import json
 import time
 import tempfile
@@ -11,6 +12,7 @@ import threading
 import pygame
 from typing import Optional, List, Dict, Callable
 import yt_dlp
+import imageio_ffmpeg
 
 PLAYLISTS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "playlists.json")
 MUSIC_CACHE_DIR = os.path.join(tempfile.gettempdir(), "yakob_music_cache")
@@ -28,6 +30,7 @@ class MusicStreamer:
         self._playback_thread: Optional[threading.Thread] = None
         self._stop_requested = False
         self._on_track_change_cb: Optional[Callable[[str], None]] = None
+        self.ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
         self._ensure_pygame_audio()
 
@@ -47,9 +50,14 @@ class MusicStreamer:
     def get_current_track(self) -> Optional[str]:
         return self.current_track
 
+    def _clean_text(self, text: str) -> str:
+        """Strips emojis and problematic characters for safe UI rendering."""
+        clean = re.sub(r'[^\w\s\-\.\,\(\)\'\:\?\!\/]', '', text)
+        return clean.strip() or "Track"
+
     def play(self, query: str, on_status_change: Optional[Callable[[str], None]] = None) -> str:
         """
-        Searches YouTube for query, streams audio in background, and notifies status.
+        Searches YouTube for query, converts track to MP3, and plays in background.
         """
         self.stop()
         self._stop_requested = False
@@ -57,8 +65,9 @@ class MusicStreamer:
 
         def _worker():
             try:
+                clean_q = self._clean_text(query)
                 if on_status_change:
-                    on_status_change(f"Searching for '{query}'...")
+                    on_status_change(f"Searching: '{clean_q[:24]}...'")
 
                 ydl_opts = {
                     'format': 'bestaudio/best',
@@ -66,61 +75,64 @@ class MusicStreamer:
                     'noplaylist': True,
                     'quiet': True,
                     'no_warnings': True,
-                    'extract_flat': False,
+                    'ffmpeg_location': self.ffmpeg_exe,
                     'outtmpl': os.path.join(MUSIC_CACHE_DIR, '%(id)s.%(ext)s'),
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
-                    }] if False else []
+                    }]
                 }
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(query, download=False)
+                    info = ydl.extract_info(query, download=True)
                     if 'entries' in info and len(info['entries']) > 0:
                         track_info = info['entries'][0]
                     else:
                         track_info = info
 
-                    title = track_info.get('title', query)
-                    url = track_info.get('url') or track_info.get('webpage_url')
+                    track_id = track_info.get('id')
+                    raw_title = track_info.get('title', query)
+                    title = self._clean_text(raw_title)
                     self.current_track = title
 
-                    if on_status_change:
-                        on_status_change(f"Loading '{title[:32]}...'")
+                    mp3_path = os.path.join(MUSIC_CACHE_DIR, f"{track_id}.mp3")
+                    
+                    if not os.path.exists(mp3_path):
+                        # Try searching for any file with track_id in cache
+                        for fname in os.listdir(MUSIC_CACHE_DIR):
+                            if fname.startswith(track_id):
+                                mp3_path = os.path.join(MUSIC_CACHE_DIR, fname)
+                                break
 
-                    # Fast stream playback using direct audio stream URL
-                    # or download first chunk if needed
-                    stream_url = None
-                    if 'formats' in track_info:
-                        audio_formats = [f for f in track_info['formats'] if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
-                        if audio_formats:
-                            stream_url = audio_formats[-1].get('url')
-                    if not stream_url:
-                        stream_url = track_info.get('url')
+                    if self._stop_requested:
+                        return
 
-                    if stream_url:
+                    if os.path.exists(mp3_path):
                         self._ensure_pygame_audio()
-                        pygame.mixer.music.load(stream_url)
+                        pygame.mixer.music.load(mp3_path)
                         pygame.mixer.music.set_volume(self.volume)
                         pygame.mixer.music.play()
                         self.is_paused = False
 
                         if on_status_change:
-                            on_status_change(f"Playing: {title[:32]}")
+                            on_status_change(f"Playing: {title[:28]}")
 
-                        # Monitor playback
+                        # Monitor playback loop
                         while pygame.mixer.music.get_busy() and not self._stop_requested:
                             time.sleep(0.5)
 
                         # Auto-play next in playlist if active
                         if not self._stop_requested and self.current_playlist_queue:
                             self._play_next_in_playlist()
+                    else:
+                        if on_status_change:
+                            on_status_change("Audio file not found")
 
             except Exception as e:
                 print(f"[MusicStreamer] Play error: {e}")
                 if on_status_change:
-                    on_status_change("Could not stream track")
+                    on_status_change("Could not load track")
 
         self._playback_thread = threading.Thread(target=_worker, daemon=True)
         self._playback_thread.start()
@@ -168,8 +180,8 @@ class MusicStreamer:
     def _load_playlists(self) -> Dict[str, List[str]]:
         if not os.path.exists(PLAYLISTS_FILE):
             default_data = {
-                "Chill Vibes": ["lofi hip hop radio", "ethiopian acoustic instrumental"],
-                "Favorites": ["The Weeknd Starboy", "Teddy Afro Ethiopia"]
+                "Chill Vibes": ["lofi hip hop beats", "ethiopian acoustic instrumental"],
+                "Favorites": ["The Weeknd Starboy official audio", "Teddy Afro Ethiopia official audio"]
             }
             self._save_playlists(default_data)
             return default_data
