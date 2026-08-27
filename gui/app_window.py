@@ -87,9 +87,21 @@ class AssistantApp(ctk.CTk):
 
         # Window Setup
         self.title(f"{ASSISTANT_NAME} - Desktop Voice Assistant")
-        self.geometry("960x720")
+        win_w, win_h = 960, 720
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        pos_x = max(50, (screen_w - win_w) // 2)
+        pos_y = max(50, (screen_h - win_h) // 2 - 30)
+        self.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
         self.minsize(840, 600)
         self.configure(fg_color=THEME["bg_dark"])
+
+        # Force bring to foreground
+        self.deiconify()
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(400, lambda: self.attributes("-topmost", False))
+        self.focus_force()
 
         # Intercept window close -> Minimize to System Tray
         self.protocol("WM_DELETE_WINDOW", self._minimize_to_tray)
@@ -98,7 +110,7 @@ class AssistantApp(ctk.CTk):
         self._create_layout()
         self._process_queue()
 
-        # Initialize Global Hotkey (Alt+Y & F8 Push-to-Talk)
+        # Initialize Global Hotkey (Alt+Y & Space Push-to-Talk)
         self._init_global_hotkey()
 
         # Initialize System Tray in Background
