@@ -1,14 +1,13 @@
-"""
-Minimalist Modern Graphical User Interface for Yakob Desktop Assistant.
-Designed with grounded matte dark tones (slate/obsidian), sleek message cards,
-responsive interactive buttons, and refined typography.
-"""
+import os
 import time
 import queue
 import threading
 import tkinter as tk
 from typing import Optional, Callable
 import customtkinter as ctk
+from PIL import Image, ImageDraw
+import pystray
+import keyboard
 
 from config import (
     ASSISTANT_NAME,
@@ -21,6 +20,7 @@ from core.speech_recognizer import SpeechRecognizer
 from core.tts_engine import TTSEngine
 from core.command_processor import CommandProcessor
 from core.system_controller import SystemController
+from core.sound_effects import sfx
 
 # Modern Grounded Dark Theme Palette
 THEME = {
@@ -72,6 +72,7 @@ class AssistantApp(ctk.CTk):
         self._listen_thread: Optional[threading.Thread] = None
         self._stop_listening = False
         self._msg_queue = queue.Queue()
+        self.tray_icon = None
 
         # Window Setup
         self.title(f"{ASSISTANT_NAME} ({ASSISTANT_NAME_AM})")
@@ -79,9 +80,18 @@ class AssistantApp(ctk.CTk):
         self.minsize(840, 600)
         self.configure(fg_color=THEME["bg_dark"])
 
+        # Intercept window close -> Minimize to System Tray
+        self.protocol("WM_DELETE_WINDOW", self._minimize_to_tray)
+
         # Layout
         self._create_layout()
         self._process_queue()
+
+        # Initialize Global Hotkey (Alt+Y)
+        self._init_global_hotkey()
+
+        # Initialize System Tray in Background
+        self._init_tray_icon()
 
         # Initial Welcome Message
         self.after(400, self._initial_greeting)
@@ -575,6 +585,7 @@ class AssistantApp(ctk.CTk):
         )
 
     def _on_timer_expired(self, expire_text: str, dur: str):
+        sfx.play_timer_alert()
         self._msg_queue.put(("chat", "bot", f"🔔 {expire_text}"))
         self.tts_engine.speak(
             text=expire_text,
@@ -602,6 +613,7 @@ class AssistantApp(ctk.CTk):
         if self._listen_thread and self._listen_thread.is_alive():
             return
         self._stop_listening = False
+        sfx.play_wake()  # Soft pleasant ascending chime
         self._listen_thread = threading.Thread(target=self._listen_worker, daemon=True)
         self._listen_thread.start()
 
@@ -646,6 +658,7 @@ class AssistantApp(ctk.CTk):
             )
 
             if text:
+                sfx.play_done()  # Soft confirmation tone
                 self._msg_queue.put(("chat", "user", text))
                 self._process_and_respond(text, used_lang or selected_lang)
             else:
@@ -855,6 +868,72 @@ class AssistantApp(ctk.CTk):
             command=save_and_close
         )
         save_btn.pack(fill="x", padx=24, pady=(0, 10))
+
+    # -------------------------------------------------------------
+    # GLOBAL HOTKEY & SYSTEM TRAY
+    # -------------------------------------------------------------
+    def _init_global_hotkey(self):
+        """Registers system-wide hotkey (Alt+Y) to summon Yakob from anywhere."""
+        def _bind():
+            try:
+                keyboard.add_hotkey("alt+y", self._on_hotkey_pressed)
+            except Exception as e:
+                print(f"[AssistantApp] Global hotkey note: {e}")
+        threading.Thread(target=_bind, daemon=True).start()
+
+    def _on_hotkey_pressed(self):
+        """Triggered when Alt+Y is pressed globally."""
+        def _wake():
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+            self._start_listening_thread()
+        self.after(0, _wake)
+
+    def _init_tray_icon(self):
+        """Initializes Windows System Tray Icon in background thread."""
+        def _tray_worker():
+            try:
+                # Generate clean 64x64 icon image
+                img = Image.new("RGBA", (64, 64), color=(0, 0, 0, 0))
+                draw = ImageDraw.Draw(img)
+                # Outer circle
+                draw.ellipse([4, 4, 60, 60], fill="#181c25", outline="#3b82f6", width=3)
+                # Inner sparkle
+                draw.ellipse([22, 22, 42, 42], fill="#3b82f6")
+
+                menu = pystray.Menu(
+                    pystray.MenuItem("✦ Open Yakob", lambda: self.after(0, self._restore_from_tray)),
+                    pystray.MenuItem("📱 Floating Widget", lambda: self.after(0, self._switch_to_widget_mode)),
+                    pystray.MenuItem("🎙 Listen Now (Alt+Y)", lambda: self.after(0, self._on_hotkey_pressed)),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem("✕ Exit Yakob", lambda: self.after(0, self._quit_app))
+                )
+                self.tray_icon = pystray.Icon("YakobAssistant", img, "Yakob Voice Assistant (Alt+Y)", menu)
+                self.tray_icon.run()
+            except Exception as e:
+                print(f"[AssistantApp] Tray init note: {e}")
+        threading.Thread(target=_tray_worker, daemon=True).start()
+
+    def _minimize_to_tray(self):
+        """Minimizes window to system tray instead of exiting."""
+        self.withdraw()
+
+    def _restore_from_tray(self):
+        """Restores window from system tray."""
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def _quit_app(self):
+        """Clean application shutdown."""
+        if self.tray_icon:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+        self.destroy()
+        os._exit(0)
 
     def _switch_to_widget_mode(self):
         self.withdraw()

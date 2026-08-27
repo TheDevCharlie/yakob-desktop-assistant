@@ -43,7 +43,12 @@ class LLMBrain:
         self.provider = provider  # "gemini", "groq", "openai", or "offline"
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GROQ_API_KEY") or os.environ.get("OPENAI_API_KEY")
         self.gemini_client = None
+        self.chat_history = []  # Multi-turn context memory
         self._init_provider()
+
+    def clear_history(self):
+        """Resets multi-turn conversational context."""
+        self.chat_history = []
 
     def set_config(self, provider: str, api_key: str):
         """Updates LLM provider and API key."""
@@ -92,22 +97,35 @@ class LLMBrain:
         return None
 
     def _call_gemini(self, prompt: str, language: str) -> Optional[str]:
-        """Calls Google Gemini 2.5 Flash for high-accuracy trivia and natural conversation."""
+        """Calls Google Gemini 2.5 Flash with multi-turn conversation memory."""
         try:
             from google.genai import types
             system_instruction = (
-                "You are Yakob (ያዕቆብ), an ultra-knowledgeable, friendly, and natural voice assistant. "
-                "You excel at answering trivia questions, world facts, Ethiopian history, science, pop culture, geography, and general knowledge. "
+                "You are Yakob (ያዕቆብ), an ultra-knowledgeable, friendly, and natural desktop voice assistant. "
+                "You excel at answering trivia questions, world facts, Ethiopian history, science, pop culture, geography, and multi-turn dialogue. "
                 "Voice Guidelines: "
                 "1. Keep answers concise, accurate, and direct (1 to 3 short spoken sentences). "
-                "2. When answering trivia, state the answer clearly upfront with an interesting tidbit. "
+                "2. When answering trivia, state the answer clearly upfront with an interesting detail. "
                 "3. If the question is in Amharic, reply in fluent, natural Amharic. "
                 "4. If in English, reply in English. "
                 "5. Never use markdown formatting (no bold asterisks, code blocks, bullet points) so the response is clean for voice TTS."
             )
+            
+            # Format multi-turn history
+            contents = []
+            for item in self.chat_history[-6:]:
+                contents.append(types.Content(
+                    role=item["role"],
+                    parts=[types.Part.from_text(text=item["content"])]
+                ))
+            contents.append(types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)]
+            ))
+
             response = self.gemini_client.models.generate_content(
                 model="gemini-2.5-flash",
-                contents=prompt,
+                contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     temperature=0.6,
@@ -116,32 +134,45 @@ class LLMBrain:
             )
             if response and response.text:
                 cleaned = re.sub(r'[*_#`~]', '', response.text.strip())
+                # Append to history
+                self.chat_history.append({"role": "user", "content": prompt})
+                self.chat_history.append({"role": "model", "content": cleaned})
+                if len(self.chat_history) > 12:
+                    self.chat_history = self.chat_history[-12:]
                 return cleaned
         except Exception as e:
             print(f"[LLMBrain] Gemini error: {e}")
         return None
 
     def _call_groq(self, prompt: str, language: str) -> Optional[str]:
-        """Calls Groq API (Llama 3.3 70B Versatile) for ultra-fast response."""
+        """Calls Groq API (Llama 3.3 70B) with multi-turn memory."""
         try:
             url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
+            messages = [
+                {"role": "system", "content": "You are Yakob, a concise desktop voice assistant. Answer directly in 1-2 spoken sentences without markdown."}
+            ]
+            for item in self.chat_history[-6:]:
+                role = "assistant" if item["role"] in ["model", "assistant"] else "user"
+                messages.append({"role": role, "content": item["content"]})
+            messages.append({"role": "user", "content": prompt})
+
             body = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": "You are Yakob, a concise desktop voice assistant. Answer trivia directly in 1-2 spoken sentences without markdown."},
-                    {"role": "user", "content": prompt}
-                ],
+                "messages": messages,
                 "max_tokens": 200,
                 "temperature": 0.6
             }
             req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode())
-                return data['choices'][0]['message']['content'].strip()
+                ans = data['choices'][0]['message']['content'].strip()
+                self.chat_history.append({"role": "user", "content": prompt})
+                self.chat_history.append({"role": "assistant", "content": ans})
+                return ans
         except Exception as e:
             print(f"[LLMBrain] Groq error: {e}")
         return None

@@ -324,6 +324,20 @@ class CommandProcessor:
                     return resp, f"🚀 {resp}", {"action": "open_custom_app", "target": target_name}
 
         # -------------------------------------------------------------
+        # 16. SMART CLIPBOARD & TEXT TOOLS
+        # -------------------------------------------------------------
+        t = text_lower
+        if any(w in t for w in ["ኮፒ", "ክሊፕቦርድ", "ጽሑፌን አንብብ", "clipboard", "read my copied", "read what i copied"]):
+            clip = self.sys_ctrl.get_clipboard_text()
+            if clip:
+                preview = clip if len(clip) <= 200 else (clip[:200] + "...")
+                resp = f"የኮፒ ያደረጉት ጽሑፍ ይህ ነው፡ {preview}" if detected_lang == "am" else f"Here is your copied text: {preview}"
+                return resp, f"📋 {resp}", {"action": "read_clipboard", "text": clip}
+            else:
+                resp = "በክሊፕቦርዱ ላይ ምንም ጽሑፍ አልተገኘም።" if detected_lang == "am" else "No text found in your clipboard."
+                return resp, f"📋 {resp}", {"action": "read_clipboard", "status": "empty"}
+
+        # -------------------------------------------------------------
         # 17. MATH EVALUATION INTENT
         # -------------------------------------------------------------
         math_result = self._evaluate_spoken_math(text_lower, detected_lang)

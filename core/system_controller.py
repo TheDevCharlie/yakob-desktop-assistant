@@ -39,6 +39,18 @@ class SystemController:
         self.pictures_dir = Path(os.path.expanduser("~")) / "Pictures"
         self.pictures_dir.mkdir(parents=True, exist_ok=True)
         self.active_timers = []
+        self._lock = threading.Lock()
+
+    def get_clipboard_text(self) -> Optional[str]:
+        """Reads text currently stored on Windows clipboard."""
+        try:
+            import pyperclip
+            text = pyperclip.paste()
+            if text and text.strip():
+                return text.strip()
+        except Exception as e:
+            print(f"[SystemController] Clipboard error: {e}")
+        return None
 
     def open_application(self, app_key_or_name: str) -> Tuple[bool, str]:
         """Launches an application by key, alias, or executable command."""

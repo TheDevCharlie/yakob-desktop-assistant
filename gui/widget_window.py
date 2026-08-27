@@ -21,6 +21,7 @@ from core.speech_recognizer import SpeechRecognizer
 from core.tts_engine import TTSEngine
 from core.command_processor import CommandProcessor
 from core.system_controller import SystemController
+from core.sound_effects import sfx
 
 WIDGET_THEME = {
     "bg": "#0e1117",
@@ -261,6 +262,7 @@ class FloatingWidget(ctk.CTkToplevel):
         if self._listen_thread and self._listen_thread.is_alive():
             return
         self._stop_listening = False
+        sfx.play_wake()
         self._listen_thread = threading.Thread(target=self._listen_worker, daemon=True)
         self._listen_thread.start()
 
@@ -290,6 +292,7 @@ class FloatingWidget(ctk.CTkToplevel):
         )
 
         if text:
+            sfx.play_done()
             spoken_resp, display_resp, meta = self.command_processor.process_command(
                 raw_text=text,
                 language=detected_lang or self.current_language
@@ -313,6 +316,7 @@ class FloatingWidget(ctk.CTkToplevel):
             self._msg_queue.put(("status", "idle", "Could not hear clearly"))
 
     def _on_timer_expired(self, expire_text: str, dur: str):
+        sfx.play_timer_alert()
         self._msg_queue.put(("status", "speaking", f"🔔 {dur} timer up!"))
         voice = VOICE_CONFIG.get(self.current_language, VOICE_CONFIG["am"])["male"]
         self.tts_engine.speak(

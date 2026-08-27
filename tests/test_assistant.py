@@ -74,6 +74,15 @@ class TestCommandProcessor(unittest.TestCase):
         spoken_moon, _, _ = self.processor.process_command("who was the first person to walk on the moon?", language="en")
         self.assertIn("Neil Armstrong", spoken_moon)
 
+    def test_clipboard_reader(self):
+        spoken_clip, _, meta_clip = self.processor.process_command("የኮፒ ያደረግኩትን አንብብልኝ", language="am")
+        self.assertEqual(meta_clip.get("action"), "read_clipboard")
+
+    def test_sound_effects(self):
+        from core.sound_effects import sfx
+        self.assertIsNotNone(sfx._wake_sound)
+        self.assertIsNotNone(sfx._done_sound)
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")
