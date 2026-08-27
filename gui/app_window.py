@@ -75,6 +75,7 @@ class AssistantApp(ctk.CTk):
         self._stop_listening = False
         self._msg_queue = queue.Queue()
         self.tray_icon = None
+        self._active_settings_dialog = None  # Single-instance dialog tracker
 
         # Window Setup
         self.title(f"{ASSISTANT_NAME} ({ASSISTANT_NAME_AM})")
@@ -841,12 +842,34 @@ class AssistantApp(ctk.CTk):
             widget.destroy()
 
     def _open_ai_settings_dialog(self):
-        """Opens a sleek modal to configure LLM Provider, API keys, and TTS Voice Engine."""
+        """Opens a sleek modal to configure LLM Provider, API keys, and TTS Voice Engine (Single Instance)."""
+        # If dialog is already open, simply bring it to focus!
+        if self._active_settings_dialog is not None:
+            try:
+                if self._active_settings_dialog.winfo_exists():
+                    self._active_settings_dialog.deiconify()
+                    self._active_settings_dialog.lift()
+                    self._active_settings_dialog.focus_force()
+                    return
+            except Exception:
+                pass
+            self._active_settings_dialog = None
+
         dialog = ctk.CTkToplevel(self)
+        self._active_settings_dialog = dialog
         dialog.title("AI Intelligence & Voice Engine Settings")
         dialog.geometry("480x480")
         dialog.attributes("-topmost", True)
         dialog.configure(fg_color=THEME["bg_dark"])
+
+        def _on_close_dialog():
+            self._active_settings_dialog = None
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+
+        dialog.protocol("WM_DELETE_WINDOW", _on_close_dialog)
 
         title = ctk.CTkLabel(
             dialog,
@@ -948,7 +971,7 @@ class AssistantApp(ctk.CTk):
                 self.tts_engine.elevenlabs_api_key = None
 
             self._append_chat_card("bot", f"🧠 Settings updated: LLM ({sel_prov}), TTS ({tts_menu.get()})")
-            dialog.destroy()
+            _on_close_dialog()
 
         save_btn = ctk.CTkButton(
             dialog,
@@ -1028,8 +1051,22 @@ class AssistantApp(ctk.CTk):
         os._exit(0)
 
     def _switch_to_widget_mode(self):
+        """Switches to floating widget and synchronizes mute/chatbot state."""
         self.withdraw()
         from gui.widget_window import FloatingWidget
-        def on_expand():
+
+        def on_expand(is_silent: bool):
+            self.chatbot_mode.set(is_silent)
             self.deiconify()
-        FloatingWidget(parent=self, on_expand=on_expand)
+            self.lift()
+            self.focus_force()
+
+        def on_mute_change(is_silent: bool):
+            self.chatbot_mode.set(is_silent)
+
+        FloatingWidget(
+            parent=self,
+            is_silent=self.chatbot_mode.get(),
+            on_expand=on_expand,
+            on_mute_change=on_mute_change
+        )

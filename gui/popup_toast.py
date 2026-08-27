@@ -1,10 +1,9 @@
 """
 Minimalist Desktop Notification Toast Popup for Yakob Assistant.
-Displays a clean, frameless, non-intrusive response bubble at the bottom-right
-of the screen when running in Silent Chatbot Mode or when minimized.
+Enforces a single-instance popup bubble at the bottom-right of the screen
+so only ONE toast appears at a time, replacing any previous active toast cleanly.
 """
 import time
-import threading
 import tkinter as tk
 import customtkinter as ctk
 
@@ -19,10 +18,23 @@ TOAST_THEME = {
     "text_secondary": "#94a3b8",
 }
 
+# Global singleton tracker to ensure only ONE toast exists at a time
+_active_toast_instance = None
+
 
 class ResponseToast(ctk.CTkToplevel):
     def __init__(self, parent=None, title_text="✦ Yakob", message_text=""):
+        global _active_toast_instance
+        # Clean up any existing toast before spawning a new one
+        if _active_toast_instance is not None:
+            try:
+                _active_toast_instance.destroy()
+            except Exception:
+                pass
+            _active_toast_instance = None
+
         super().__init__(parent)
+        _active_toast_instance = self
         
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -70,13 +82,13 @@ class ResponseToast(ctk.CTkToplevel):
             fg_color="transparent",
             hover_color="#331a1a",
             text_color="gray70",
-            command=self.destroy
+            command=self._close
         )
         close_btn.pack(side="right")
 
         # Message Preview
         preview = message_text if len(message_text) <= 120 else (message_text[:120] + "...")
-        msg_lbl = ctk.CTkLabel(
+        self.msg_lbl = ctk.CTkLabel(
             card,
             text=preview,
             font=ctk.CTkFont(family="Segoe UI", size=12),
@@ -84,20 +96,23 @@ class ResponseToast(ctk.CTkToplevel):
             wraplength=340,
             justify="left"
         )
-        msg_lbl.pack(anchor="w", padx=16, pady=(0, 10))
+        self.msg_lbl.pack(anchor="w", padx=16, pady=(0, 10))
 
         # Auto-dismiss after 6 seconds
-        self.after(6000, self._fade_out)
+        self.after(6000, self._close)
 
-    def _fade_out(self):
+    def _close(self):
+        global _active_toast_instance
         try:
+            if _active_toast_instance == self:
+                _active_toast_instance = None
             self.destroy()
         except Exception:
             pass
 
 
 def show_response_toast(parent=None, message: str = ""):
-    """Helper to display response toast non-blockingly."""
+    """Helper to display response toast non-blockingly (single-instance)."""
     try:
         ResponseToast(parent=parent, message_text=message)
     except Exception as e:

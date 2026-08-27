@@ -1,7 +1,10 @@
 """
 Minimalist Desktop Floating Widget Window for Yakob Assistant.
-A sleek, draggable, always-on-top floating pill widget with grounded matte obsidian tones,
-subtle border glow, and responsive micro-interactions.
+Supports:
+1. Draggable obsidian pill widget with smooth glowing borders
+2. Bi-directional Mute / Chatbot Mode synchronized with Main App
+3. Single-instance response popup toasts
+4. Voice Barge-In & Acoustic Chimes
 """
 import time
 import queue
@@ -44,9 +47,16 @@ WIDGET_THEME = {
 
 
 class FloatingWidget(ctk.CTkToplevel):
-    def __init__(self, parent=None, on_expand: Optional[Callable[[], None]] = None):
+    def __init__(
+        self,
+        parent=None,
+        is_silent: bool = False,
+        on_expand: Optional[Callable[[bool], None]] = None,
+        on_mute_change: Optional[Callable[[bool], None]] = None
+    ):
         super().__init__(parent)
         self.on_expand_callback = on_expand
+        self.on_mute_change_callback = on_mute_change
 
         # Core Services
         self.audio_recorder = AudioRecorder()
@@ -60,7 +70,7 @@ class FloatingWidget(ctk.CTkToplevel):
 
         # State
         self.current_language = DEFAULT_LANGUAGE
-        self.is_silent_mode = False  # Chatbot / Text Only mode
+        self.is_silent_mode = is_silent  # Synchronized with main window
         self.status_state = "idle"
         self._listen_thread = None
         self._stop_listening = False
@@ -130,9 +140,10 @@ class FloatingWidget(ctk.CTkToplevel):
         )
         self.name_label.pack(anchor="w")
 
+        init_status = "Chatbot mode (Silent)" if self.is_silent_mode else "Ready to listen"
         self.status_label = ctk.CTkLabel(
             self.info_box,
-            text="Ready to listen",
+            text=init_status,
             font=ctk.CTkFont(family="Segoe UI", size=11),
             text_color=WIDGET_THEME["text_secondary"]
         )
@@ -146,16 +157,18 @@ class FloatingWidget(ctk.CTkToplevel):
         self.top_row = ctk.CTkFrame(self.btn_col, fg_color="transparent")
         self.top_row.pack(anchor="e")
 
+        mute_icon = "🔇" if self.is_silent_mode else "🔊"
+        mute_color = "#ef4444" if self.is_silent_mode else WIDGET_THEME["text_secondary"]
         self.mute_btn = ctk.CTkButton(
             self.top_row,
-            text="🔊",
+            text=mute_icon,
             width=22,
             height=22,
             corner_radius=6,
             font=ctk.CTkFont(size=10),
             fg_color=WIDGET_THEME["btn_bg"],
             hover_color=WIDGET_THEME["btn_hover"],
-            text_color=WIDGET_THEME["text_secondary"],
+            text_color=mute_color,
             command=self._toggle_mute_mode
         )
         self.mute_btn.pack(side="left", padx=(0, 4))
@@ -222,8 +235,21 @@ class FloatingWidget(ctk.CTkToplevel):
 
     def _expand_to_full(self):
         if self.on_expand_callback:
-            self.on_expand_callback()
+            self.on_expand_callback(self.is_silent_mode)
         self.destroy()
+
+    def _toggle_mute_mode(self):
+        self.is_silent_mode = not self.is_silent_mode
+        if self.is_silent_mode:
+            self.tts_engine.stop()
+            self.mute_btn.configure(text="🔇", text_color="#ef4444")
+            self.set_status("idle", "Chatbot mode (Silent)")
+        else:
+            self.mute_btn.configure(text="🔊", text_color=WIDGET_THEME["text_secondary"])
+            self.set_status("idle", "Voice mode (Speech on)")
+
+        if self.on_mute_change_callback:
+            self.on_mute_change_callback(self.is_silent_mode)
 
     def set_status(self, state: str, text: str = ""):
         self.status_state = state
@@ -233,7 +259,8 @@ class FloatingWidget(ctk.CTkToplevel):
                 fg_color=WIDGET_THEME["mic_idle"],
                 hover_color=WIDGET_THEME["mic_idle_hover"]
             )
-            self.status_label.configure(text=text or "Ready to listen")
+            fallback_text = "Chatbot mode (Silent)" if self.is_silent_mode else "Ready to listen"
+            self.status_label.configure(text=text or fallback_text)
             self.pill_frame.configure(border_color=WIDGET_THEME["border_idle"])
         elif state == "listening":
             self.mic_btn.configure(
@@ -268,7 +295,7 @@ class FloatingWidget(ctk.CTkToplevel):
         if self.status_state == "listening":
             self._stop_listening = True
             self.audio_recorder.stop_recording()
-            self.set_status("idle", "Ready to listen")
+            self.set_status("idle")
         else:
             self._start_listening()
 
@@ -281,16 +308,6 @@ class FloatingWidget(ctk.CTkToplevel):
         sfx.play_wake()
         self._listen_thread = threading.Thread(target=self._listen_worker, daemon=True)
         self._listen_thread.start()
-
-    def _toggle_mute_mode(self):
-        self.is_silent_mode = not self.is_silent_mode
-        if self.is_silent_mode:
-            self.tts_engine.stop()
-            self.mute_btn.configure(text="🔇", text_color="#ef4444")
-            self.set_status("idle", "Chatbot mode (Silent)")
-        else:
-            self.mute_btn.configure(text="🔊", text_color=WIDGET_THEME["text_secondary"])
-            self.set_status("idle", "Voice mode (Speech on)")
 
     def _listen_worker(self):
         self._msg_queue.put(("status", "listening", "Speak now..."))
@@ -308,7 +325,7 @@ class FloatingWidget(ctk.CTkToplevel):
             on_audio_level=on_audio_level
         )
         if not wav_buf or self._stop_listening:
-            self._msg_queue.put(("status", "idle", "Ready to listen"))
+            self._msg_queue.put(("status", "idle"))
             return
 
         self._msg_queue.put(("status", "processing", "Transcribing..."))
@@ -327,15 +344,17 @@ class FloatingWidget(ctk.CTkToplevel):
             preview = (display_resp[:26] + "..") if len(display_resp) > 26 else display_resp
             self._msg_queue.put(("status", "speaking", preview))
 
-            # If silent chatbot mode is active, trigger text popup and skip TTS!
+            # Trigger single-instance text popup toast
+            self.after(50, lambda: show_response_toast(self, display_resp))
+
+            # If silent chatbot mode is active, skip TTS entirely!
             if self.is_silent_mode:
                 self.tts_engine.stop()
-                self.after(50, lambda: show_response_toast(self, display_resp))
-                self._msg_queue.put(("status", "idle", "Ready to listen"))
+                self._msg_queue.put(("status", "idle"))
                 return
 
             def on_tts_finish():
-                self._msg_queue.put(("status", "idle", "Ready to listen"))
+                self._msg_queue.put(("status", "idle"))
 
             voice = VOICE_CONFIG.get(self.current_language, VOICE_CONFIG["am"])["male"]
             self.tts_engine.speak(
@@ -351,12 +370,14 @@ class FloatingWidget(ctk.CTkToplevel):
     def _on_timer_expired(self, expire_text: str, dur: str):
         sfx.play_timer_alert()
         self._msg_queue.put(("status", "speaking", f"🔔 {dur} timer up!"))
-        voice = VOICE_CONFIG.get(self.current_language, VOICE_CONFIG["am"])["male"]
-        self.tts_engine.speak(
-            text=expire_text,
-            language=self.current_language,
-            voice=voice
-        )
+        show_response_toast(self, f"🔔 {dur} timer completed!")
+        if not self.is_silent_mode:
+            voice = VOICE_CONFIG.get(self.current_language, VOICE_CONFIG["am"])["male"]
+            self.tts_engine.speak(
+                text=expire_text,
+                language=self.current_language,
+                voice=voice
+            )
 
     def _process_queue(self):
         try:
@@ -375,9 +396,10 @@ def launch_standalone_widget():
     root = ctk.CTk()
     root.withdraw()
 
-    def on_expand():
+    def on_expand(is_silent: bool):
         from gui.app_window import AssistantApp
         app = AssistantApp()
+        app.chatbot_mode.set(is_silent)
         app.mainloop()
 
     widget = FloatingWidget(parent=root, on_expand=on_expand)
