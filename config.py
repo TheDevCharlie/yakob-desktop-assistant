@@ -229,6 +229,29 @@ QUOTES_EN = [
     "“Do what you can, with what you have, where you are.” – Theodore Roosevelt"
 ]
 
+OFFLINE_TRIVIA_KNOWLEDGE = {
+    "capital": {
+        "france": ("የፈረንሳይ ዋና ከተማ ፓሪስ ነው።", "The capital of France is Paris."),
+        "ethiopia": ("የኢትዮጵያ ዋና ከተማ አዲስ አበባ ናት።", "The capital of Ethiopia is Addis Ababa."),
+        "japan": ("የጃፓን ዋና ከተማ ቶኪዮ ነው።", "The capital of Japan is Tokyo."),
+        "usa": ("የአሜሪካ ዋና ከተማ ዋሽንግተን ዲሲ ነው።", "The capital of the United States is Washington, D.C."),
+        "germany": ("የጀርመን ዋና ከተማ በርሊን ነው።", "The capital of Germany is Berlin."),
+        "kenya": ("የኬንያ ዋና ከተማ ናይሮቢ ነው።", "The capital of Kenya is Nairobi."),
+        "egypt": ("የግብፅ ዋና ከተማ ካይሮ ነው።", "The capital of Egypt is Cairo."),
+        "italy": ("የጣልያን ዋና ከተማ ሮም ነው።", "The capital of Italy is Rome."),
+        "china": ("የቻይና ዋና ከተማ ቤጂንግ ነው።", "The capital of China is Beijing."),
+        "uk": ("የእንግሊዝ ዋና ከተማ ለንደን ነው።", "The capital of the United Kingdom is London.")
+    },
+    "largest_planet": ("በስርአተ-ፀሐይ ውስጥ ትልቁ ፕላኔት ጁፒተር (Jupiter) ነው።", "The largest planet in our solar system is Jupiter."),
+    "fastest_animal": ("በምድር ላይ በጣም ፈጣኑ እንስሳ አቦሸማኔ (Cheetah) ነው።", "The fastest land animal on Earth is the Cheetah."),
+    "longest_river": ("በዓለም ላይ ረጅሙ ወንዝ የአባይ ወንዝ (Nile River) ነው።", "The longest river in the world is the Nile River."),
+    "highest_mountain": ("በዓለም ላይ ረጅሙ ተራራ ኤቨረስት (Mount Everest) ነው።", "The highest mountain in the world is Mount Everest."),
+    "tallest_building": ("በዓለም ላይ ረጅሙ ህንጻ በዱባይ የሚገኘው ቡርጅ ካሊፋ (Burj Khalifa) ነው።", "The tallest building in the world is the Burj Khalifa in Dubai."),
+    "first_man_on_moon": ("ጨረቃ ላይ ለመጀመሪያ ጊዜ የረገጠው ሰው ኒል አርምስትሮንግ (Neil Armstrong) በ 1969 ዓ.ም ነው።", "The first person to walk on the Moon was Neil Armstrong in July 1969 during the Apollo 11 mission."),
+    "adwa_victory": ("የአድዋ ድል የተካሄደው በ 1888 ዓ.ም (March 1, 1896) ሲሆን፤ ኢትዮጵያ የጣልያንን ወራሪ ጦር በድል አሸንፋለች።", "The Battle of Adwa took place on March 1, 1896, where Ethiopian forces led by Emperor Menelik II defeated the Italian colonial army."),
+    "lucy_dinknesh": ("ድንቅነሽ (Lucy) በ 1974 ዓ.ም በአፋር ክልል የተገኘች የ 3.2 ሚሊዮን ዓመት እድሜ ያላት ቅሪተ-አካል ናት።", "Lucy, also known as Dinkinesh in Ethiopia, is a 3.2-million-year-old fossil of Australopithecus afarensis discovered in the Afar region in 1974.")
+}
+
 CONVERSATION_RESPONSES = {
     "greetings": {
         "am": [

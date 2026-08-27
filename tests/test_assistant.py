@@ -113,6 +113,12 @@ class TestCommandProcessor(unittest.TestCase):
         self.assertEqual(DEFAULT_PTT_KEY, "f8")
         self.assertIn("en-US-AndrewMultilingualNeural", VOICE_CONFIG["en"]["male"])
 
+    def test_live_web_search(self):
+        from core.web_search import web_search
+        res = web_search.search_live_web("Albert Einstein")
+        self.assertIsNotNone(res)
+        self.assertGreater(len(res), 10)
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")
