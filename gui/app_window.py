@@ -146,14 +146,24 @@ class AssistantApp(ctk.CTk):
         self.speed_slider.set(0)
         self.speed_slider.grid(row=7, column=0, padx=15, pady=(0, 12), sticky="ew")
 
-        # Mode Options
+        # Mode Options & Widget Mode
         self.continuous_switch = ctk.CTkSwitch(
             self.sidebar,
             text="ተከታታይ ማዳመጥ\n(Continuous Listen)",
             variable=self.is_continuous,
             command=self._on_continuous_toggle
         )
-        self.continuous_switch.grid(row=8, column=0, padx=15, pady=(5, 12), sticky="w")
+        self.continuous_switch.grid(row=8, column=0, padx=15, pady=(5, 8), sticky="w")
+
+        # Floating Widget Button
+        self.widget_btn = ctk.CTkButton(
+            self.sidebar,
+            text="📱 ተንሳፋፊ ዊጅት (Widget Mode)",
+            fg_color="#1b4d3e",
+            hover_color="#143b2f",
+            command=self._switch_to_widget_mode
+        )
+        self.widget_btn.grid(row=9, column=0, padx=15, pady=(2, 8), sticky="ew")
 
         # Quick Test Audio Buttons
         self.test_am_btn = ctk.CTkButton(
@@ -163,7 +173,7 @@ class AssistantApp(ctk.CTk):
             hover_color="#1c3e5a",
             command=lambda: self._test_voice("am")
         )
-        self.test_am_btn.grid(row=9, column=0, padx=15, pady=(4, 4), sticky="ew")
+        self.test_am_btn.grid(row=10, column=0, padx=15, pady=(4, 4), sticky="ew")
 
         self.test_en_btn = ctk.CTkButton(
             self.sidebar,
@@ -172,7 +182,7 @@ class AssistantApp(ctk.CTk):
             hover_color="#1c3e5a",
             command=lambda: self._test_voice("en")
         )
-        self.test_en_btn.grid(row=10, column=0, padx=15, pady=(4, 8), sticky="ew")
+        self.test_en_btn.grid(row=11, column=0, padx=15, pady=(4, 8), sticky="ew")
 
         # Stop Speaking & Clear Log Buttons
         self.stop_tts_btn = ctk.CTkButton(
@@ -182,7 +192,7 @@ class AssistantApp(ctk.CTk):
             hover_color="#6e2e2e",
             command=self._stop_tts
         )
-        self.stop_tts_btn.grid(row=11, column=0, padx=15, pady=(4, 4), sticky="ew")
+        self.stop_tts_btn.grid(row=12, column=0, padx=15, pady=(4, 4), sticky="ew")
 
         self.clear_btn = ctk.CTkButton(
             self.sidebar,
@@ -191,7 +201,7 @@ class AssistantApp(ctk.CTk):
             hover_color="#2a2a2a",
             command=self._clear_chat
         )
-        self.clear_btn.grid(row=12, column=0, padx=15, pady=(4, 15), sticky="ew")
+        self.clear_btn.grid(row=13, column=0, padx=15, pady=(4, 15), sticky="ew")
 
         # -------------------------------------------------------------
         # RIGHT MAIN PANEL - CONVERSATION & CONTROLS
@@ -579,6 +589,14 @@ class AssistantApp(ctk.CTk):
     def _stop_tts(self):
         self.tts_engine.stop()
         self.set_status("idle", "ንግግር ተቋርጧል (Speech stopped)")
+
+    def _switch_to_widget_mode(self):
+        """Hides full main window and shows floating widget."""
+        self.withdraw()
+        from gui.widget_window import FloatingWidget
+        def on_expand():
+            self.deiconify()
+        widget = FloatingWidget(parent=self, on_expand=on_expand)
 
     def _clear_chat(self):
         self.chat_box.configure(state="normal")

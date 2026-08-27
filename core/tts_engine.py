@@ -1,9 +1,11 @@
 """
-Text-to-Speech (TTS) Engine
-Synthesizes speech using Microsoft Edge Neural voices (Edge-TTS) with fallback to gTTS.
+Text-to-Speech (TTS) Engine for Yakob Desktop Assistant.
+Synthesizes ultra-natural, human-like neural speech using Microsoft Edge Neural voices (Edge-TTS)
+with prosody enhancements and fallback to gTTS.
 Manages asynchronous non-blocking audio playback using pygame.mixer.
 """
 import os
+import re
 import time
 import queue
 import asyncio
@@ -19,7 +21,6 @@ from config import VOICE_CONFIG
 
 class TTSEngine:
     def __init__(self):
-        # Initialize Pygame Mixer for smooth audio playback
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=24000, size=-16, channels=2, buffer=512)
@@ -29,7 +30,6 @@ class TTSEngine:
         self._is_speaking = False
         self._stop_requested = False
         self._playback_thread: Optional[threading.Thread] = None
-        self._temp_files = []
         self._lock = threading.Lock()
 
     def is_speaking(self) -> bool:
@@ -52,39 +52,31 @@ class TTSEngine:
         language: str = "am",
         voice: Optional[str] = None,
         rate: str = "+0%",
+        pitch: str = "+0Hz",
         on_start: Optional[Callable[[], None]] = None,
         on_finish: Optional[Callable[[], None]] = None,
         block: bool = False
     ):
         """
-        Asynchronously synthesizes and speaks the given text.
-        
-        Args:
-            text: The text to be spoken (Amharic or English).
-            language: "am" or "en".
-            voice: Specific voice name (e.g. 'am-ET-MekdesNeural', 'en-US-JennyNeural').
-            rate: Speech rate modifier (e.g. "+0%", "+10%", "-10%").
-            on_start: Callback invoked when audio starts playing.
-            on_finish: Callback invoked when audio finishes playing.
-            block: If True, blocks until audio completes.
+        Asynchronously synthesizes and speaks the given text with human-like prosody.
         """
         if not text or not text.strip():
             if on_finish:
                 on_finish()
             return
 
-        # Stop previous playback if any
         self.stop()
         self._stop_requested = False
 
-        # Auto-detect language if not explicitly am/en
+        # Clean text for human-like natural reading
+        clean_text = self._prepare_human_text(text)
+
         if language not in ["am", "en"]:
-            if any('\u1200' <= c <= '\u137F' for c in text):
+            if any('\u1200' <= c <= '\u137F' for c in clean_text):
                 language = "am"
             else:
                 language = "en"
 
-        # Determine voice
         if not voice:
             voice = VOICE_CONFIG.get(language, VOICE_CONFIG["am"])["default"]
 
@@ -94,13 +86,11 @@ class TTSEngine:
                 
             audio_path = None
             try:
-                # 1. Synthesize audio file
-                audio_path = self._synthesize_audio(text, language, voice, rate)
+                audio_path = self._synthesize_audio(clean_text, language, voice, rate, pitch)
                 
                 if self._stop_requested or not audio_path or not os.path.exists(audio_path):
                     return
 
-                # 2. Play audio file with Pygame Mixer
                 if on_start:
                     try:
                         on_start()
@@ -130,7 +120,6 @@ class TTSEngine:
                     except Exception as e:
                         print(f"[TTSEngine] on_finish error: {e}")
                         
-                # Clean up temp file
                 if audio_path and os.path.exists(audio_path):
                     try:
                         os.remove(audio_path)
@@ -143,18 +132,37 @@ class TTSEngine:
             self._playback_thread = threading.Thread(target=_worker, daemon=True)
             self._playback_thread.start()
 
-    def _synthesize_audio(self, text: str, language: str, voice: str, rate: str) -> Optional[str]:
+    def _prepare_human_text(self, text: str) -> str:
+        """Cleans and punctuates text to give speech a natural, warm rhythm."""
+        # Strip emoji icons and markdown formatting
+        cleaned = re.sub(r'[🎙️🤖🧑🕒📅🔋🔊🔉🔇🔒▶️🔍🚀🌐🧮👋✨🙏😄💡❓⏱️☀️🪙🎲📰🧩📜🎵🎤👨‍💻🔔]', '', text)
+        cleaned = re.sub(r'[*_#`~]', '', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        # Ensure sentence ending punctuation for natural voice cadence
+        if cleaned and not cleaned[-1] in '.!?።!':
+            cleaned += '።' if any('\u1200' <= c <= '\u137F' for c in cleaned) else '.'
+            
+        return cleaned
+
+    def _synthesize_audio(
+        self,
+        text: str,
+        language: str,
+        voice: str,
+        rate: str = "+0%",
+        pitch: str = "+0Hz"
+    ) -> Optional[str]:
         """Synthesizes text to a temporary MP3 file using Edge-TTS with gTTS fallback."""
         temp_fd, temp_path = tempfile.mkstemp(suffix=".mp3")
         os.close(temp_fd)
 
-        # Primary method: Microsoft Edge Neural TTS
+        # Primary method: Microsoft Edge Neural TTS with customized rate and pitch
         try:
             async def _edge_gen():
-                communicate = edge_tts.Communicate(text, voice, rate=rate)
+                communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
                 await communicate.save(temp_path)
 
-            # Run in event loop
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)

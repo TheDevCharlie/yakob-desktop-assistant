@@ -14,11 +14,15 @@ if sys.platform == "win32":
 def main():
     parser = argparse.ArgumentParser(description="Yakob (ያዕቆብ) - Multilingual Desktop Voice Assistant (Amharic & English)")
     parser.add_argument("--cli", action="store_true", help="Run in interactive Terminal / CLI mode")
+    parser.add_argument("--widget", action="store_true", help="Launch in Sleek Floating Desktop Widget mode")
     parser.add_argument("--lang", default="am", choices=["am", "en", "auto"], help="Default language (am/en/auto)")
     args = parser.parse_args()
 
     if args.cli:
         run_cli_mode(args.lang)
+    elif args.widget:
+        from gui.widget_window import launch_standalone_widget
+        launch_standalone_widget()
     else:
         run_gui_mode()
 

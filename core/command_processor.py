@@ -22,16 +22,19 @@ from config import (
     ASSISTANT_NAME_AM
 )
 from core.system_controller import SystemController
+from core.llm_brain import LLMBrain
 
 
 class CommandProcessor:
     def __init__(
         self,
         system_controller: Optional[SystemController] = None,
-        on_timer_expire_callback: Optional[Callable[[str, str], None]] = None
+        on_timer_expire_callback: Optional[Callable[[str, str], None]] = None,
+        llm_brain: Optional[LLMBrain] = None
     ):
         self.sys_ctrl = system_controller or SystemController()
         self.on_timer_expire = on_timer_expire_callback
+        self.llm_brain = llm_brain or LLMBrain()
 
     def process_command(self, raw_text: str, language: str = "am") -> Tuple[str, str, Dict[str, Any]]:
         """
@@ -404,8 +407,14 @@ class CommandProcessor:
             return reply, f"💡 {reply}", {"action": "conversation", "topic": "help"}
 
         # -------------------------------------------------------------
-        # 19. UNKNOWN / FALLBACK
+        # 19. LLM GENERATION & UNKNOWN FALLBACK
         # -------------------------------------------------------------
+        # If Gemini LLM is configured and available, generate a smart human-like response!
+        if self.llm_brain.is_available():
+            llm_text = self.llm_brain.generate_response(raw_text, language=detected_lang)
+            if llm_text:
+                return llm_text, f"✨ {llm_text}", {"action": "llm_chat", "model": "gemini-2.5-flash"}
+
         fallback = random.choice(CONVERSATION_RESPONSES["unknown"][detected_lang])
         return fallback, f"❓ {fallback}", {"action": "unknown"}
 
