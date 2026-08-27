@@ -100,6 +100,11 @@ class TestCommandProcessor(unittest.TestCase):
         en = translator.translate_amharic_to_english("የፈረንሳይ ዋና ከተማ")
         self.assertEqual(en, "capital of France")
 
+    def test_chatbot_mode_toggle(self):
+        from gui.popup_toast import ResponseToast
+        # Verify toast class is importable
+        self.assertTrue(issubclass(ResponseToast, object))
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")

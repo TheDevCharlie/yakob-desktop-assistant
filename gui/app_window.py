@@ -21,6 +21,7 @@ from core.tts_engine import TTSEngine
 from core.command_processor import CommandProcessor
 from core.system_controller import SystemController
 from core.sound_effects import sfx
+from gui.popup_toast import show_response_toast
 
 # Modern Grounded Dark Theme Palette
 THEME = {
@@ -68,6 +69,7 @@ class AssistantApp(ctk.CTk):
         self.current_voice = tk.StringVar(value=VOICE_CONFIG["am"]["male"])
         self.speech_rate = tk.StringVar(value="+15%")  # Fast, lively conversational default
         self.is_continuous = tk.BooleanVar(value=False)
+        self.chatbot_mode = tk.BooleanVar(value=False)  # Silent Text Chatbot Mode
         self.status_state = "idle"
         self._listen_thread: Optional[threading.Thread] = None
         self._stop_listening = False
@@ -250,11 +252,24 @@ class AssistantApp(ctk.CTk):
             variable=self.is_continuous,
             command=self._on_continuous_toggle
         )
-        self.continuous_switch.grid(row=9, column=0, padx=20, pady=(0, 14), sticky="w")
+        self.continuous_switch.grid(row=9, column=0, padx=20, pady=(0, 8), sticky="w")
+
+        # Chatbot Mode Switch (Disables Voice Output, enables Popup)
+        self.chatbot_switch = ctk.CTkSwitch(
+            self.sidebar,
+            text="💬 Chatbot Mode (Mute Voice)",
+            progress_color="#10b981",
+            fg_color=THEME["card_bg"],
+            text_color=THEME["text_secondary"],
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            variable=self.chatbot_mode,
+            command=self._on_chatbot_mode_toggle
+        )
+        self.chatbot_switch.grid(row=10, column=0, padx=20, pady=(0, 14), sticky="w")
 
         # Divider
         self.div1 = ctk.CTkFrame(self.sidebar, height=1, fg_color=THEME["border"])
-        self.div1.grid(row=10, column=0, padx=20, pady=(0, 14), sticky="ew")
+        self.div1.grid(row=11, column=0, padx=20, pady=(0, 14), sticky="ew")
 
         # Floating Widget Button
         self.widget_btn = ctk.CTkButton(
@@ -709,6 +724,14 @@ class AssistantApp(ctk.CTk):
 
         self._msg_queue.put(("chat", "bot", display_resp))
 
+        # Check if Silent Chatbot Mode is Active
+        if self.chatbot_mode.get():
+            self.tts_engine.stop()
+            # Show floating text popup toast
+            self.after(50, lambda: show_response_toast(self, display_resp))
+            self._msg_queue.put(("execute_done",))
+            return
+
         def on_tts_start():
             self._msg_queue.put(("status", "speaking", "Playing voice response"))
 
@@ -726,6 +749,13 @@ class AssistantApp(ctk.CTk):
             )
         else:
             self._msg_queue.put(("execute_done",))
+
+    def _on_chatbot_mode_toggle(self):
+        if self.chatbot_mode.get():
+            self.tts_engine.stop()
+            self._append_chat_card("bot", "💬 Chatbot Mode enabled (Voice output muted, text popup active).")
+        else:
+            self._append_chat_card("bot", "🔊 Voice Mode enabled (Speech output restored).")
 
     def _on_send_text(self):
         text = self.text_entry.get().strip()
