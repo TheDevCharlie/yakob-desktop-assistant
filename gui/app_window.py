@@ -871,42 +871,85 @@ class AssistantApp(ctk.CTk):
     def _open_radio_dialog(self):
         """Opens Live World & Ethiopian Radio Stations selector modal."""
         dialog = ctk.CTkToplevel(self)
-        dialog.title("📻 Live Radio Stations")
-        dialog.geometry("480x480")
+        dialog.title("📻 Live World & Ethiopian Radio Stations")
+        dialog.geometry("560x580")
         dialog.attributes("-topmost", True)
         dialog.configure(fg_color=THEME["bg_dark"])
 
-        title = ctk.CTkLabel(dialog, text="📻 Live World & Ethiopian Radio Stations", font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"), text_color=THEME["text_primary"])
-        title.pack(anchor="w", padx=20, pady=(16, 8))
+        title = ctk.CTkLabel(dialog, text="📻 24/7 Live Broadcast World Radio Stations", font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"), text_color=THEME["text_primary"])
+        title.pack(anchor="w", padx=20, pady=(16, 6))
+
+        # Search Bar
+        search_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        search_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        search_entry = ctk.CTkEntry(
+            search_frame,
+            placeholder_text="Search stations by name, genre, country (e.g. 'jazz', 'lofi', 'bbc')...",
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            fg_color=THEME["card_bg"],
+            border_color=THEME["border"],
+            height=32
+        )
+        search_entry.pack(fill="x")
 
         scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=16, pady=(0, 14))
 
         stations = music_streamer.list_radio_stations()
-        for st in stations:
-            row = ctk.CTkFrame(scroll, fg_color=THEME["card_bg"], corner_radius=8)
-            row.pack(fill="x", pady=4)
 
-            info_box = ctk.CTkFrame(row, fg_color="transparent")
-            info_box.pack(side="left", padx=12, pady=10)
+        def _render_stations(filter_text=""):
+            for child in scroll.winfo_children():
+                child.destroy()
 
-            name_lbl = ctk.CTkLabel(info_box, text=f"📻 {st['name']}", font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"), text_color=THEME["text_primary"])
-            name_lbl.pack(anchor="w")
+            f = filter_text.lower().strip()
+            count = 0
+            for st in stations:
+                name = st["name"]
+                genre = st.get("genre", "")
+                cat = st.get("category", "")
+                name_am = st.get("name_am", "")
+                if f and not (f in name.lower() or f in genre.lower() or f in cat.lower() or f in name_am.lower()):
+                    continue
+                count += 1
 
-            genre_lbl = ctk.CTkLabel(info_box, text=f"{st.get('name_am', '')} • {st.get('genre', '')}", font=ctk.CTkFont(family="Segoe UI", size=10), text_color=THEME["text_muted"])
-            genre_lbl.pack(anchor="w")
+                row = ctk.CTkFrame(scroll, fg_color=THEME["card_bg"], corner_radius=10, border_width=1, border_color="#242c3d")
+                row.pack(fill="x", pady=4)
 
-            tune_btn = ctk.CTkButton(
-                row,
-                text="▶ Tune In",
-                width=76,
-                height=28,
-                font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-                fg_color="#0f766e",
-                hover_color="#0d9488",
-                command=lambda s=st["name"]: (music_streamer.play_radio(s, on_status_change=self._update_music_bar_status), dialog.destroy())
-            )
-            tune_btn.pack(side="right", padx=10)
+                info_box = ctk.CTkFrame(row, fg_color="transparent")
+                info_box.pack(side="left", padx=14, pady=10)
+
+                top_line = ctk.CTkFrame(info_box, fg_color="transparent")
+                top_line.pack(anchor="w")
+
+                name_lbl = ctk.CTkLabel(top_line, text=f"📻 {name}", font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"), text_color=THEME["text_primary"])
+                name_lbl.pack(side="left", padx=(0, 8))
+
+                badge_lbl = ctk.CTkLabel(top_line, text=f" {cat} ", font=ctk.CTkFont(size=9, weight="bold"), fg_color="#1e293b", corner_radius=4, text_color="#38bdf8")
+                badge_lbl.pack(side="left")
+
+                sub_text = f"{name_am} • {genre}" if name_am else genre
+                genre_lbl = ctk.CTkLabel(info_box, text=sub_text, font=ctk.CTkFont(family="Segoe UI", size=10), text_color=THEME["text_muted"])
+                genre_lbl.pack(anchor="w", pady=(2, 0))
+
+                tune_btn = ctk.CTkButton(
+                    row,
+                    text="▶ Tune In",
+                    width=76,
+                    height=28,
+                    font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+                    fg_color="#0f766e",
+                    hover_color="#0d9488",
+                    command=lambda s=name: (music_streamer.play_radio(s, on_status_change=self._update_music_bar_status), dialog.destroy())
+                )
+                tune_btn.pack(side="right", padx=12)
+
+            if count == 0:
+                empty_lbl = ctk.CTkLabel(scroll, text="No stations matched your search.", font=ctk.CTkFont(family="Segoe UI", size=12), text_color=THEME["text_muted"])
+                empty_lbl.pack(pady=20)
+
+        search_entry.bind("<KeyRelease>", lambda e: _render_stations(search_entry.get()))
+        _render_stations()
 
     def _open_playlists_dialog(self):
         """Opens Curated Playlists modal."""
