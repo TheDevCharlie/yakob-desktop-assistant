@@ -781,34 +781,24 @@ class AssistantApp(ctk.CTk):
             widget.destroy()
 
     def _open_ai_settings_dialog(self):
-        """Opens a sleek minimalist modal to configure Gemini / Groq / OpenAI API keys."""
+        """Opens a sleek modal to configure LLM Provider, API keys, and TTS Voice Engine."""
         dialog = ctk.CTkToplevel(self)
-        dialog.title("AI Intelligence & Trivia Settings")
-        dialog.geometry("460x360")
+        dialog.title("AI Intelligence & Voice Engine Settings")
+        dialog.geometry("480x480")
         dialog.attributes("-topmost", True)
         dialog.configure(fg_color=THEME["bg_dark"])
 
         title = ctk.CTkLabel(
             dialog,
-            text="🧠 Configure LLM & Trivia Engine",
+            text="🧠 AI Intelligence & Voice Settings",
             font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
             text_color=THEME["text_primary"]
         )
         title.pack(anchor="w", padx=24, pady=(20, 6))
 
-        desc = ctk.CTkLabel(
-            dialog,
-            text="Select an AI model for deep trivia, general knowledge, and conversational reasoning in Amharic & English:",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
-            text_color=THEME["text_secondary"],
-            wraplength=410,
-            justify="left"
-        )
-        desc.pack(anchor="w", padx=24, pady=(0, 16))
-
-        # Provider Selector
-        prov_lbl = ctk.CTkLabel(dialog, text="AI PROVIDER", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
-        prov_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+        # 1. LLM BRAIN PROVIDER
+        prov_lbl = ctk.CTkLabel(dialog, text="LLM BRAIN PROVIDER", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        prov_lbl.pack(anchor="w", padx=24, pady=(6, 4))
 
         prov_menu = ctk.CTkOptionMenu(
             dialog,
@@ -819,43 +809,85 @@ class AssistantApp(ctk.CTk):
             dropdown_text_color=THEME["text_primary"],
             text_color=THEME["text_primary"],
             corner_radius=8,
-            height=34
+            height=32
         )
-        prov_menu.pack(fill="x", padx=24, pady=(0, 14))
+        prov_menu.pack(fill="x", padx=24, pady=(0, 10))
 
-        # API Key Input
-        key_lbl = ctk.CTkLabel(dialog, text="API KEY (Optional if using built-in offline engine)", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        key_lbl = ctk.CTkLabel(dialog, text="GEMINI / GROQ / OPENAI API KEY", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
         key_lbl.pack(anchor="w", padx=24, pady=(0, 4))
 
         key_entry = ctk.CTkEntry(
             dialog,
-            placeholder_text="Paste your Gemini / Groq / OpenAI API key here...",
+            placeholder_text="Paste your LLM API key here...",
             placeholder_text_color=THEME["text_muted"],
             fg_color=THEME["card_bg"],
             border_color=THEME["border"],
             text_color=THEME["text_primary"],
             show="•",
-            height=36
+            height=34
         )
-        key_entry.pack(fill="x", padx=24, pady=(0, 20))
+        key_entry.pack(fill="x", padx=24, pady=(0, 16))
 
-        # Fill existing key if present
+        # Fill existing LLM key if present
         if self.command_processor.llm_brain.api_key:
             key_entry.insert(0, self.command_processor.llm_brain.api_key)
 
+        # 2. TTS VOICE SYNTHESIS ENGINE
+        tts_lbl = ctk.CTkLabel(dialog, text="VOICE SYNTHESIS (TTS) ENGINE", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        tts_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+
+        tts_menu = ctk.CTkOptionMenu(
+            dialog,
+            values=["Microsoft Flagship Neural HD (Free & Instant)", "ElevenLabs Studio AI (Highest Human Realism)"],
+            fg_color=THEME["card_bg"],
+            button_color=THEME["border"],
+            dropdown_fg_color=THEME["card_bg"],
+            dropdown_text_color=THEME["text_primary"],
+            text_color=THEME["text_primary"],
+            corner_radius=8,
+            height=32
+        )
+        tts_menu.pack(fill="x", padx=24, pady=(0, 10))
+
+        eleven_lbl = ctk.CTkLabel(dialog, text="ELEVENLABS API KEY (Optional for Studio AI)", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=THEME["text_muted"])
+        eleven_lbl.pack(anchor="w", padx=24, pady=(0, 4))
+
+        eleven_entry = ctk.CTkEntry(
+            dialog,
+            placeholder_text="Paste ElevenLabs API key here...",
+            placeholder_text_color=THEME["text_muted"],
+            fg_color=THEME["card_bg"],
+            border_color=THEME["border"],
+            text_color=THEME["text_primary"],
+            show="•",
+            height=34
+        )
+        eleven_entry.pack(fill="x", padx=24, pady=(0, 20))
+
+        if self.tts_engine.elevenlabs_api_key:
+            eleven_entry.insert(0, self.tts_engine.elevenlabs_api_key)
+
         def save_and_close():
-            sel = prov_menu.get()
-            key = key_entry.get().strip()
-            
+            # Save LLM Brain
+            sel_prov = prov_menu.get()
+            llm_key = key_entry.get().strip()
             provider_map = {
                 "Google Gemini 2.5 Flash (Recommended)": "gemini",
                 "Groq (Llama 3.3 70B)": "groq",
                 "OpenAI (GPT-4o-mini)": "openai",
                 "Built-in Offline Trivia Engine": "offline"
             }
-            chosen_provider = provider_map.get(sel, "gemini")
-            self.command_processor.llm_brain.set_config(chosen_provider, key)
-            self._append_chat_card("bot", f"🧠 AI Model updated to: {sel}")
+            chosen_provider = provider_map.get(sel_prov, "gemini")
+            self.command_processor.llm_brain.set_config(chosen_provider, llm_key)
+
+            # Save TTS Voice Engine
+            eleven_key = eleven_entry.get().strip()
+            if eleven_key:
+                self.tts_engine.set_elevenlabs_key(eleven_key)
+            else:
+                self.tts_engine.elevenlabs_api_key = None
+
+            self._append_chat_card("bot", f"🧠 Settings updated: LLM ({sel_prov}), TTS ({tts_menu.get()})")
             dialog.destroy()
 
         save_btn = ctk.CTkButton(

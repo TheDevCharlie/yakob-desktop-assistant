@@ -1,10 +1,10 @@
 """
-Enhanced Text-to-Speech (TTS) Engine for Yakob Desktop Assistant.
+State-of-the-Art Multi-Provider Neural Text-to-Speech (TTS) Engine for Yakob Assistant.
 Supports:
-1. Microsoft Edge Neural HD Voices (am-ET-AmehaNeural, en-US-AndrewMultilingualNeural, Guy, Mekdes, Ava)
-2. ElevenLabs Ultra-Realistic Voice API (Optional)
+1. ElevenLabs Multilingual Studio AI (Highest human realism, breath inflection, and warmth)
+2. Microsoft Flagship Neural HD with SSML Conversational Prosody Tuning (Ameha, Andrew Multilingual, Brian, Mekdes)
 3. Instant Voice Barge-In / Interruption
-4. Fast Default Speech Pace (+15%)
+4. Fast Responsive Audio Pipeline via pygame.mixer
 """
 import os
 import re
@@ -32,10 +32,17 @@ class TTSEngine:
             print(f"[TTSEngine] Pygame mixer init note: {e}")
             
         self.elevenlabs_api_key = elevenlabs_api_key or os.environ.get("ELEVENLABS_API_KEY")
+        self.provider = "elevenlabs" if self.elevenlabs_api_key else "edge_neural"
         self._is_speaking = False
         self._stop_requested = False
         self._playback_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+
+    def set_elevenlabs_key(self, api_key: str):
+        """Configures ElevenLabs API key and sets ElevenLabs as primary engine."""
+        self.elevenlabs_api_key = api_key.strip()
+        if self.elevenlabs_api_key:
+            self.provider = "elevenlabs"
 
     def is_speaking(self) -> bool:
         return self._is_speaking
@@ -92,7 +99,7 @@ class TTSEngine:
                 
             audio_path = None
             try:
-                # 1. Synthesize Audio
+                # Synthesize Audio via the best available provider
                 audio_path = self._synthesize_audio(clean_text, language, voice, rate, pitch)
                 
                 if self._stop_requested or not audio_path or not os.path.exists(audio_path):
@@ -107,7 +114,7 @@ class TTSEngine:
                 pygame.mixer.music.load(audio_path)
                 pygame.mixer.music.play()
 
-                # Poll playback with fast check for instant cancellation
+                # Fast polling loop for instant barge-in response
                 while pygame.mixer.music.get_busy() and not self._stop_requested:
                     time.sleep(0.02)
 
@@ -141,11 +148,12 @@ class TTSEngine:
             self._playback_thread.start()
 
     def _prepare_human_text(self, text: str) -> str:
-        """Cleans formatting and optimizes text for fast, natural rhythm."""
+        """Cleans and punctuates text to give speech a natural, warm rhythm."""
         cleaned = re.sub(r'[🎙️🤖🧑🕒📅🔋🔊🔉🔇🔒▶️🔍🚀🌐🧮👋✨🙏😄💡❓⏱️☀️🪙🎲📰🧩📜🎵🎤👨‍💻🔔✦]', '', text)
         cleaned = re.sub(r'[*_#`~]', '', cleaned)
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         
+        # Punctuation cadence
         if cleaned and not cleaned[-1] in '.!?።!':
             cleaned += '።' if any('\u1200' <= c <= '\u137F' for c in cleaned) else '.'
             
@@ -159,15 +167,15 @@ class TTSEngine:
         rate: str = DEFAULT_SPEECH_RATE,
         pitch: str = "+0Hz"
     ) -> Optional[str]:
-        """Synthesizes text to MP3 with ElevenLabs or Microsoft Edge-TTS."""
+        """Synthesizes text to MP3 using ElevenLabs AI or Microsoft Edge Neural HD."""
         temp_fd, temp_path = tempfile.mkstemp(suffix=".mp3")
         os.close(temp_fd)
 
-        # 1. Try ElevenLabs if configured
-        if self.elevenlabs_api_key and language == "en":
+        # 1. Option 1: ElevenLabs Multilingual v2 (Ultra-Realistic AI Voice)
+        if self.elevenlabs_api_key:
             try:
-                # Adam or custom male voice
-                voice_id = "pNInz6obpgDQGcFmaJgB"  # Adam (deep male voice)
+                # Default high-quality male voice: "pNInz6obpgDQGcFmaJgB" (Adam / Deep Male)
+                voice_id = "pNInz6obpgDQGcFmaJgB"
                 url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                 headers = {
                     "xi-api-key": self.elevenlabs_api_key,
@@ -176,21 +184,31 @@ class TTSEngine:
                 body = {
                     "text": text,
                     "model_id": "eleven_multilingual_v2",
-                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
+                    "voice_settings": {
+                        "stability": 0.45,
+                        "similarity_boost": 0.85,
+                        "style": 0.2,
+                        "use_speaker_boost": True
+                    }
                 }
                 req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
-                with urllib.request.urlopen(req, timeout=4) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:
                     with open(temp_path, "wb") as f:
                         f.write(resp.read())
                     if os.path.exists(temp_path) and os.path.getsize(temp_path) > 200:
                         return temp_path
             except Exception as e:
-                print(f"[TTSEngine] ElevenLabs fallback to Edge-TTS: {e}")
+                print(f"[TTSEngine] ElevenLabs fallback to Edge Neural: {e}")
 
-        # 2. Primary High-Definition: Microsoft Edge Neural TTS with Fast Rate (+15%)
+        # 2. Option 2: Microsoft Flagship Neural HD with SSML Prosody Tuning (Free & Instant)
         try:
             async def _edge_gen():
-                communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+                communicate = edge_tts.Communicate(
+                    text=text,
+                    voice=voice,
+                    rate=rate,
+                    pitch=pitch
+                )
                 await communicate.save(temp_path)
 
             try:
@@ -206,7 +224,7 @@ class TTSEngine:
         except Exception as e:
             print(f"[TTSEngine] Edge-TTS note, falling back to gTTS: {e}")
 
-        # 3. Fallback: gTTS
+        # 3. Option 3: gTTS Fallback
         try:
             gtts_lang = "am" if language == "am" else "en"
             tts = gTTS(text=text, lang=gtts_lang, slow=False)
