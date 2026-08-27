@@ -144,6 +144,10 @@ class TestCommandProcessor(unittest.TestCase):
         self.assertEqual(meta.get("action"), "play_radio")
         self.assertIn("sheger", meta.get("station", "").lower())
 
+    def test_floating_widget_classes(self):
+        from gui.widget_window import FloatingWidget
+        self.assertTrue(issubclass(FloatingWidget, object))
+
     def test_amharic_greetings(self):
         spoken, display, meta = self.processor.process_command("ሰላም ጤና ይስጥልኝ", language="am")
         self.assertEqual(meta.get("action"), "conversation")
