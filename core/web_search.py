@@ -25,15 +25,15 @@ class WebSearchEngine:
 
         clean_query = self._clean_query(query)
 
-        # 1. Try DuckDuckGo Instant Answer API
+        # 1. Try Wikipedia Summary API (Instant 100ms response for knowledge queries)
+        wiki_summary = self._search_wikipedia(clean_query)
+        if wiki_summary and len(wiki_summary.strip()) > 10:
+            return wiki_summary
+
+        # 2. Try DuckDuckGo Instant Answer API
         instant_answer = self._search_duckduckgo_instant(clean_query)
         if instant_answer:
             return instant_answer
-
-        # 2. Try Wikipedia Summary API (Great for people, events, geography, science)
-        wiki_summary = self._search_wikipedia(clean_query)
-        if wiki_summary:
-            return wiki_summary
 
         # 3. Try DuckDuckGo HTML Web Search (Live search results)
         html_snippets = self._search_duckduckgo_html(clean_query, max_results=max_results)

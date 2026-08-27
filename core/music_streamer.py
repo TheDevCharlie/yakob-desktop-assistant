@@ -14,6 +14,7 @@ from typing import Optional, List, Dict, Callable
 import yt_dlp
 import imageio_ffmpeg
 from core.radio_stations import find_radio_station, RADIO_STATIONS
+from core.live_radio import live_radio
 
 PLAYLISTS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "playlists.json")
 MUSIC_CACHE_DIR = os.path.join(tempfile.gettempdir(), "yakob_music_cache")
@@ -43,12 +44,16 @@ class MusicStreamer:
             print(f"[MusicStreamer] Pygame audio init note: {e}")
 
     def is_playing(self) -> bool:
+        if live_radio.is_playing():
+            return True
         try:
             return pygame.mixer.music.get_busy() and not self.is_paused
         except Exception:
             return False
 
     def get_current_track(self) -> Optional[str]:
+        if live_radio.is_playing() or (live_radio.is_paused and live_radio.get_current_station()):
+            return f"📻 {live_radio.get_current_station()}"
         return self.current_track
 
     def _clean_text(self, text: str) -> str:
@@ -61,22 +66,16 @@ class MusicStreamer:
 
     def play_radio(self, station_query: str, on_status_change: Optional[Callable[[str], None]] = None) -> str:
         """
-        Tunes into a live radio station (Sheger FM, Fana FM, BBC, NPR, Lofi, etc.).
+        Tunes into direct 24/7 live broadcast radio station from official station servers.
         """
-        station = find_radio_station(station_query)
-        st_name = station["name"] if station else station_query.title()
-        
-        self.stop()
-        self._stop_requested = False
-        self._on_track_change_cb = on_status_change
-        self.current_track = f"📻 {st_name}"
-
-        if on_status_change:
-            on_status_change(f"Tuning to: {st_name[:24]}")
-
-        # Search for live stream using query or station url
-        search_target = f"{st_name} live radio stream"
-        return self.play(search_target, on_status_change=on_status_change)
+        # Stop any active YouTube track
+        try:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.unload()
+        except Exception:
+            pass
+        self.current_track = None
+        return live_radio.play_station(station_query, on_status_change=on_status_change)
 
     def play(self, query: str, on_status_change: Optional[Callable[[str], None]] = None) -> str:
         """
@@ -162,7 +161,8 @@ class MusicStreamer:
         return f"Streaming '{query}'..."
 
     def pause(self):
-        """Pauses active playback."""
+        """Pauses active playback (music or live radio)."""
+        live_radio.pause()
         try:
             if pygame.mixer.music.get_busy():
                 pygame.mixer.music.pause()
@@ -172,6 +172,7 @@ class MusicStreamer:
 
     def unpause(self):
         """Resumes paused playback."""
+        live_radio.unpause()
         try:
             pygame.mixer.music.unpause()
             self.is_paused = False
@@ -181,6 +182,7 @@ class MusicStreamer:
     def stop(self):
         """Halts playback immediately."""
         self._stop_requested = True
+        live_radio.stop()
         try:
             pygame.mixer.music.stop()
             pygame.mixer.music.unload()
@@ -190,8 +192,9 @@ class MusicStreamer:
         self.is_paused = False
 
     def set_volume(self, level: float):
-        """Sets music volume between 0.0 and 1.0."""
+        """Sets volume between 0.0 and 1.0."""
         self.volume = max(0.0, min(1.0, float(level)))
+        live_radio.set_volume(self.volume)
         try:
             pygame.mixer.music.set_volume(self.volume)
         except Exception:

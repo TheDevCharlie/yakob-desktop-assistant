@@ -135,9 +135,11 @@ class TestCommandProcessor(unittest.TestCase):
 
     def test_radio_stations_and_routing(self):
         from core.radio_stations import find_radio_station, RADIO_STATIONS
+        from core.live_radio import live_radio
         sheger = find_radio_station("sheger fm")
         self.assertIsNotNone(sheger)
         self.assertIn("Sheger FM", sheger["name"])
+        self.assertFalse(live_radio.is_playing())
 
         # Test command processor radio routing
         spoken, display, meta = self.processor.process_command("play radio Sheger FM", language="en")

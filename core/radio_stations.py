@@ -19,17 +19,24 @@ RADIO_STATIONS = {
         "genre": "News & Ethiopian Music",
         "country": "Ethiopia"
     },
+    "bisrat fm": {
+        "name": "Bisrat FM 101.1 (Ethiopia)",
+        "name_am": "ብሥራት ኤፍ ኤም 101.1",
+        "url": "https://stream.zeno.fm/x520a2213m0uv",
+        "genre": "Youth, Culture & Music",
+        "country": "Ethiopia"
+    },
     "lofi radio": {
-        "name": "Lofi Hip Hop 24/7 Beats",
+        "name": "Lofi Hip Hop Lounge 24/7",
         "name_am": "ሎፋይ ሂፕ ሆፕ ሬዲዮ",
-        "url": "https://stream.zeno.fm/f3wvbbqmdg8uv",
+        "url": "http://ice1.somafm.com/groovesalad-128-mp3",
         "genre": "Chill, Beats & Study",
         "country": "Global"
     },
     "bbc world service": {
         "name": "BBC World Service (UK)",
         "name_am": "ቢቢሲ ወርልድ ሰርቪስ",
-        "url": "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service",
+        "url": "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service",
         "genre": "Global News & Features",
         "country": "United Kingdom"
     },
@@ -43,14 +50,14 @@ RADIO_STATIONS = {
     "jazz lounge": {
         "name": "Classic Jazz & Lounge 24/7",
         "name_am": "ክላሲክ ጃዝ ሬዲዮ",
-        "url": "https://stream.zeno.fm/yndptw2wdg8uv",
+        "url": "http://ice1.somafm.com/secretagent-128-mp3",
         "genre": "Smooth Jazz & Saxophone",
         "country": "Global"
     },
     "classical radio": {
-        "name": "Classical Masterpieces 24/7",
+        "name": "Classical Symphony & Ambient 24/7",
         "name_am": "ክላሲካል ሙዚቃ ሬዲዮ",
-        "url": "https://stream.zeno.fm/d40d9h4wdg8uv",
+        "url": "http://ice1.somafm.com/dronezone-128-mp3",
         "genre": "Classical & Symphony",
         "country": "Global"
     }
