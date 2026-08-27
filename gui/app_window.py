@@ -13,7 +13,8 @@ from config import (
     ASSISTANT_NAME,
     ASSISTANT_NAME_AM,
     VOICE_CONFIG,
-    DEFAULT_LANGUAGE
+    DEFAULT_LANGUAGE,
+    DEFAULT_PTT_KEY
 )
 from core.audio_recorder import AudioRecorder
 from core.speech_recognizer import SpeechRecognizer
