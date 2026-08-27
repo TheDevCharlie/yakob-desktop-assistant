@@ -374,7 +374,7 @@ class AssistantApp(ctk.CTk):
         # -------------------------------------------------------------
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.main_frame.grid(row=0, column=1, sticky="nsew", padx=24, pady=20)
-        self.main_frame.grid_rowconfigure(1, weight=1)
+        self.main_frame.grid_rowconfigure(2, weight=1)  # Chat container expands
         self.main_frame.grid_columnconfigure(0, weight=1)
 
         # Hero Action Card (Clean Minimalist Mic & Status Header)
@@ -385,7 +385,7 @@ class AssistantApp(ctk.CTk):
             border_width=1,
             border_color=THEME["border"]
         )
-        self.hero_card.grid(row=0, column=0, sticky="ew", pady=(0, 16))
+        self.hero_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
         self.hero_card.grid_columnconfigure(1, weight=1)
 
         # Button Group Container (Toggle Mic + PTT)
@@ -455,75 +455,85 @@ class AssistantApp(ctk.CTk):
         self.energy_bar.set(0)
         self.energy_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=16, pady=(0, 10))
 
-        # YouTube Music Player Bar (Sleek in-app streamer)
-        self.music_bar = ctk.CTkFrame(self.main_frame, corner_radius=10, fg_color="#151922", border_width=1, border_color=THEME["border"])
+        # -------------------------------------------------------------
+        # YouTube Music Player Bar (Sleek in-app streamer - ROW 1)
+        # -------------------------------------------------------------
+        self.music_bar = ctk.CTkFrame(
+            self.main_frame,
+            corner_radius=12,
+            fg_color="#141822",
+            border_width=1,
+            border_color="#2b3548"
+        )
         self.music_bar.grid(row=1, column=0, sticky="ew", pady=(0, 12))
         self.music_bar.grid_columnconfigure(0, weight=1)
 
         self.music_title_lbl = ctk.CTkLabel(
             self.music_bar,
-            text="🎵 Music Streamer: Ready (Say 'play <song>' or 'my playlists')",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME["text_secondary"]
+            text="🎵 Music Streamer: Ready  (Say 'play <song>' or click Playlists)",
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            text_color=THEME["text_primary"]
         )
-        self.music_title_lbl.grid(row=0, column=0, padx=14, pady=8, sticky="w")
+        self.music_title_lbl.grid(row=0, column=0, padx=16, pady=10, sticky="w")
 
         self.music_ctrls = ctk.CTkFrame(self.music_bar, fg_color="transparent")
-        self.music_ctrls.grid(row=0, column=1, padx=10, pady=6, sticky="e")
+        self.music_ctrls.grid(row=0, column=1, padx=12, pady=6, sticky="e")
 
         self.play_pause_btn = ctk.CTkButton(
             self.music_ctrls,
-            text="⏸/▶",
-            width=32,
-            height=26,
+            text="▶ Play",
+            width=64,
+            height=28,
             corner_radius=6,
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             fg_color=THEME["card_bg"],
             hover_color=THEME["card_hover"],
             command=self._toggle_music_playback
         )
-        self.play_pause_btn.pack(side="left", padx=(0, 4))
+        self.play_pause_btn.pack(side="left", padx=(0, 6))
 
         self.skip_btn = ctk.CTkButton(
             self.music_ctrls,
-            text="⏭",
-            width=32,
-            height=26,
+            text="⏭ Skip",
+            width=60,
+            height=28,
             corner_radius=6,
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(family="Segoe UI", size=11),
             fg_color=THEME["card_bg"],
             hover_color=THEME["card_hover"],
             command=self._skip_music_track
         )
-        self.skip_btn.pack(side="left", padx=(0, 4))
+        self.skip_btn.pack(side="left", padx=(0, 6))
 
         self.stop_music_btn = ctk.CTkButton(
             self.music_ctrls,
-            text="⏹",
-            width=32,
-            height=26,
+            text="⏹ Stop",
+            width=58,
+            height=28,
             corner_radius=6,
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(family="Segoe UI", size=11),
             fg_color=THEME["card_bg"],
             hover_color="#3b1c1c",
             command=self._stop_music_playback
         )
-        self.stop_music_btn.pack(side="left", padx=(0, 4))
+        self.stop_music_btn.pack(side="left", padx=(0, 8))
 
         self.playlists_btn = ctk.CTkButton(
             self.music_ctrls,
             text="🎧 Playlists",
-            width=76,
-            height=26,
+            width=86,
+            height=28,
             corner_radius=6,
-            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             fg_color=THEME["primary"],
             hover_color=THEME["primary_hover"],
             command=self._open_playlists_dialog
         )
         self.playlists_btn.pack(side="left")
 
-        # Scrollable Chat History Container
+        # -------------------------------------------------------------
+        # Scrollable Chat History Container (ROW 2)
+        # -------------------------------------------------------------
         self.chat_container = ctk.CTkScrollableFrame(
             self.main_frame,
             corner_radius=14,
@@ -531,16 +541,16 @@ class AssistantApp(ctk.CTk):
             border_width=1,
             border_color=THEME["border"]
         )
-        self.chat_container.grid(row=1, column=0, sticky="nsew", pady=(0, 14))
+        self.chat_container.grid(row=2, column=0, sticky="nsew", pady=(0, 12))
 
-        # Quick Action Suggestion Chips (Minimalist pill chips)
+        # Quick Action Suggestion Chips (ROW 3)
         self.chips_frame = ctk.CTkScrollableFrame(
             self.main_frame,
             height=40,
             orientation="horizontal",
             fg_color="transparent"
         )
-        self.chips_frame.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        self.chips_frame.grid(row=3, column=0, sticky="ew", pady=(0, 12))
 
         chips = [
             ("⏱ የ 5 ደቂቃ ታይመር", "የ 5 ደቂቃ ታይመር ሙላ"),
@@ -580,7 +590,7 @@ class AssistantApp(ctk.CTk):
             border_width=1,
             border_color=THEME["border"]
         )
-        self.input_card.grid(row=3, column=0, sticky="ew")
+        self.input_card.grid(row=4, column=0, sticky="ew")
         self.input_card.grid_columnconfigure(0, weight=1)
 
         self.text_entry = ctk.CTkEntry(
